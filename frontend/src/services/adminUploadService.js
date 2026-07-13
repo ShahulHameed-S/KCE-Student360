@@ -6,11 +6,7 @@ export const adminUploadService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await api.post("/admin/upload/students", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/upload/students", formData);
     return response.data;
   },
 
@@ -18,11 +14,7 @@ export const adminUploadService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await api.post("/admin/upload/faculty", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/upload/faculty", formData);
     return response.data;
   },
 
@@ -30,11 +22,7 @@ export const adminUploadService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await api.post("/admin/upload/mentors", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    });
+    const response = await api.post("/admin/upload/mentors", formData);
     return response.data;
   },
 

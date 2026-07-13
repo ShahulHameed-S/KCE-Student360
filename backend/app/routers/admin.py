@@ -237,7 +237,8 @@ async def upload_students(
         "mentor_email": ["mentor_email", "mentor email", "mentor_address", "mentor_email_address"],
         "date_of_birth": ["date_of_birth", "date of birth", "dob"],
         "gender": ["gender", "sex"],
-        "address": ["address", "location", "residence"]
+        "address": ["address", "location", "residence"],
+        "password": ["password", "default password", "default_password", "pass"]
     }
     
     col_mapping = map_headers(rows[0], expected_cols)
@@ -258,8 +259,11 @@ async def upload_students(
             continue
             
         try:
-            register_no = str(row[col_mapping["register_no"]]).strip() if row[col_mapping["register_no"]] is not None else ""
-            name = str(row[col_mapping["name"]]).strip() if row[col_mapping["name"]] is not None else ""
+            reg_idx = col_mapping["register_no"]
+            name_idx = col_mapping["name"]
+            
+            register_no = str(row[reg_idx]).strip() if (reg_idx < len(row) and row[reg_idx] is not None) else ""
+            name = str(row[name_idx]).strip() if (name_idx < len(row) and row[name_idx] is not None) else ""
             
             if not register_no or register_no == "None":
                 errors_list.append({"row": idx, "identifier": "Row " + str(idx), "message": "Register number is missing"})
@@ -271,22 +275,30 @@ async def upload_students(
                 continue
                 
             dept_idx = col_mapping.get("department")
-            department = str(row[dept_idx]).strip() if (dept_idx is not None and row[dept_idx] is not None) else "AI & DS"
+            department = str(row[dept_idx]).strip() if (dept_idx is not None and dept_idx < len(row) and row[dept_idx] is not None) else "AI & DS"
             
             year_idx = col_mapping.get("year")
-            year = str(row[year_idx]).strip() if (year_idx is not None and row[year_idx] is not None) else "3"
+            year = str(row[year_idx]).strip() if (year_idx is not None and year_idx < len(row) and row[year_idx] is not None) else "3"
             
             sec_idx = col_mapping.get("section")
-            section = str(row[sec_idx]).strip() if (sec_idx is not None and row[sec_idx] is not None) else "A"
+            section = str(row[sec_idx]).strip() if (sec_idx is not None and sec_idx < len(row) and row[sec_idx] is not None) else "A"
             
             phone_idx = col_mapping.get("phone")
-            phone = str(row[phone_idx]).strip() if (phone_idx is not None and row[phone_idx] is not None) else ""
+            phone = str(row[phone_idx]).strip() if (phone_idx is not None and phone_idx < len(row) and row[phone_idx] is not None) else ""
             
             batch_idx = col_mapping.get("batch")
-            batch = str(row[batch_idx]).strip() if (batch_idx is not None and row[batch_idx] is not None) else "2028"
+            batch = str(row[batch_idx]).strip() if (batch_idx is not None and batch_idx < len(row) and row[batch_idx] is not None) else "2028"
             
             email_idx = col_mapping.get("email")
-            raw_email = str(row[email_idx]).strip().lower() if (email_idx is not None and row[email_idx] is not None) else ""
+            raw_email = str(row[email_idx]).strip().lower() if (email_idx is not None and email_idx < len(row) and row[email_idx] is not None) else ""
+            
+            password_idx = col_mapping.get("password")
+            custom_password = str(row[password_idx]).strip() if (password_idx is not None and password_idx < len(row) and row[password_idx] is not None) else ""
+            
+            if custom_password and custom_password != "None":
+                hashed_user_password = get_password_hash(custom_password)
+            else:
+                hashed_user_password = hashed_default_password
             
             with db.begin_nested():
                 student = db.query(Student).filter(Student.register_no == register_no).first()
@@ -320,7 +332,7 @@ async def upload_students(
                         user = User(
                             username=register_no,
                             email=email,
-                            password_hash=hashed_default_password,
+                            password_hash=hashed_user_password,
                             role="student"
                         )
                         db.add(user)
@@ -382,7 +394,7 @@ async def upload_students(
                 
                 # Optionally assign mentor if mentor_email is present
                 m_email_idx = col_mapping.get("mentor_email")
-                mentor_email = str(row[m_email_idx]).strip() if (m_email_idx is not None and row[m_email_idx] is not None) else ""
+                mentor_email = str(row[m_email_idx]).strip() if (m_email_idx is not None and m_email_idx < len(row) and row[m_email_idx] is not None) else ""
                 if mentor_email:
                     mentor = db.query(User).filter(User.email.ilike(mentor_email), User.role == "mentor").first()
                     if mentor:
@@ -440,7 +452,8 @@ async def upload_faculty(
         "email": ["email", "email address", "email_address"],
         "phone": ["phone", "phone no", "phone_no", "phone number", "mobile", "mobile no", "mobile_no"],
         "designation": ["designation", "role", "title", "position"],
-        "employee_id": ["employee_id", "employee id", "emp id", "emp_id", "faculty id", "faculty_id"]
+        "employee_id": ["employee_id", "employee id", "emp id", "emp_id", "faculty id", "faculty_id"],
+        "password": ["password", "default password", "default_password", "pass"]
     }
     
     col_mapping = map_headers(rows[0], expected_cols)
@@ -460,29 +473,38 @@ async def upload_faculty(
             continue
             
         try:
-            name = str(row[col_mapping["name"]]).strip() if row[col_mapping["name"]] is not None else ""
+            name_idx = col_mapping["name"]
+            name = str(row[name_idx]).strip() if (name_idx < len(row) and row[name_idx] is not None) else ""
             if not name or name == "None":
                 errors_list.append({"row": idx, "identifier": "Row " + str(idx), "message": "Faculty name is missing"})
                 skipped += 1
                 continue
                 
             email_idx = col_mapping.get("email")
-            email = str(row[email_idx]).strip().lower() if (email_idx is not None and row[email_idx] is not None) else ""
+            email = str(row[email_idx]).strip().lower() if (email_idx is not None and email_idx < len(row) and row[email_idx] is not None) else ""
             
             emp_id_idx = col_mapping.get("employee_id")
-            emp_id = str(row[emp_id_idx]).strip() if (emp_id_idx is not None and row[emp_id_idx] is not None) else ""
+            emp_id = str(row[emp_id_idx]).strip() if (emp_id_idx is not None and emp_id_idx < len(row) and row[emp_id_idx] is not None) else ""
             
             if not email:
                 email = clean_and_generate_email(name, emp_id, db)
                 
             dept_idx = col_mapping.get("department")
-            department = str(row[dept_idx]).strip() if (dept_idx is not None and row[dept_idx] is not None) else "AI & DS"
+            department = str(row[dept_idx]).strip() if (dept_idx is not None and dept_idx < len(row) and row[dept_idx] is not None) else "AI & DS"
             
             phone_idx = col_mapping.get("phone")
-            phone = str(row[phone_idx]).strip() if (phone_idx is not None and row[phone_idx] is not None) else ""
+            phone = str(row[phone_idx]).strip() if (phone_idx is not None and phone_idx < len(row) and row[phone_idx] is not None) else ""
             
             desig_idx = col_mapping.get("designation")
-            designation = str(row[desig_idx]).strip() if (desig_idx is not None and row[desig_idx] is not None) else "Assistant Professor"
+            designation = str(row[desig_idx]).strip() if (desig_idx is not None and desig_idx < len(row) and row[desig_idx] is not None) else "Assistant Professor"
+
+            password_idx = col_mapping.get("password")
+            custom_password = str(row[password_idx]).strip() if (password_idx is not None and password_idx < len(row) and row[password_idx] is not None) else ""
+            
+            if custom_password and custom_password != "None":
+                hashed_user_password = get_password_hash(custom_password)
+            else:
+                hashed_user_password = hashed_default_password
             
             with db.begin_nested():
                 user = db.query(User).filter(User.email == email).first()
@@ -512,7 +534,7 @@ async def upload_faculty(
                     user = User(
                         username=email,
                         email=email,
-                        password_hash=hashed_default_password,
+                        password_hash=hashed_user_password,
                         role="faculty"
                     )
                     db.add(user)
@@ -587,7 +609,8 @@ async def upload_mentors(
         "designation": ["designation", "role", "title", "position"],
         "employee_id": ["employee_id", "employee id", "emp id", "emp_id", "mentor id", "mentor_id"],
         "assigned_section": ["assigned_section", "assigned section", "section", "sec"],
-        "assigned_batch": ["assigned_batch", "assigned batch", "batch", "class batch"]
+        "assigned_batch": ["assigned_batch", "assigned batch", "batch", "class batch"],
+        "password": ["password", "default password", "default_password", "pass"]
     }
     
     col_mapping = map_headers(rows[0], expected_cols)
@@ -607,29 +630,38 @@ async def upload_mentors(
             continue
             
         try:
-            name = str(row[col_mapping["name"]]).strip() if row[col_mapping["name"]] is not None else ""
+            name_idx = col_mapping["name"]
+            name = str(row[name_idx]).strip() if (name_idx < len(row) and row[name_idx] is not None) else ""
             if not name or name == "None":
                 errors_list.append({"row": idx, "identifier": "Row " + str(idx), "message": "Mentor name is missing"})
                 skipped += 1
                 continue
                 
             email_idx = col_mapping.get("email")
-            email = str(row[email_idx]).strip().lower() if (email_idx is not None and row[email_idx] is not None) else ""
+            email = str(row[email_idx]).strip().lower() if (email_idx is not None and email_idx < len(row) and row[email_idx] is not None) else ""
             
             emp_id_idx = col_mapping.get("employee_id")
-            emp_id = str(row[emp_id_idx]).strip() if (emp_id_idx is not None and row[emp_id_idx] is not None) else ""
+            emp_id = str(row[emp_id_idx]).strip() if (emp_id_idx is not None and emp_id_idx < len(row) and row[emp_id_idx] is not None) else ""
             
             if not email:
                 email = clean_and_generate_email(name, emp_id, db)
                 
             dept_idx = col_mapping.get("department")
-            department = str(row[dept_idx]).strip() if (dept_idx is not None and row[dept_idx] is not None) else "AI & DS"
+            department = str(row[dept_idx]).strip() if (dept_idx is not None and dept_idx < len(row) and row[dept_idx] is not None) else "AI & DS"
             
             phone_idx = col_mapping.get("phone")
-            phone = str(row[phone_idx]).strip() if (phone_idx is not None and row[phone_idx] is not None) else ""
+            phone = str(row[phone_idx]).strip() if (phone_idx is not None and phone_idx < len(row) and row[phone_idx] is not None) else ""
             
             desig_idx = col_mapping.get("designation")
-            designation = str(row[desig_idx]).strip() if (desig_idx is not None and row[desig_idx] is not None) else "Mentor"
+            designation = str(row[desig_idx]).strip() if (desig_idx is not None and desig_idx < len(row) and row[desig_idx] is not None) else "Mentor"
+
+            password_idx = col_mapping.get("password")
+            custom_password = str(row[password_idx]).strip() if (password_idx is not None and password_idx < len(row) and row[password_idx] is not None) else ""
+            
+            if custom_password and custom_password != "None":
+                hashed_user_password = get_password_hash(custom_password)
+            else:
+                hashed_user_password = hashed_default_password
             
             with db.begin_nested():
                 user = db.query(User).filter(User.email == email).first()
@@ -660,7 +692,7 @@ async def upload_mentors(
                     user = User(
                         username=email,
                         email=email,
-                        password_hash=hashed_default_password,
+                        password_hash=hashed_user_password,
                         role="mentor"
                     )
                     db.add(user)
@@ -691,8 +723,8 @@ async def upload_mentors(
                 sec_idx = col_mapping.get("assigned_section")
                 batch_idx = col_mapping.get("assigned_batch")
                 
-                assigned_sec = str(row[sec_idx]).strip() if (sec_idx is not None and row[sec_idx] is not None) else ""
-                assigned_bat = str(row[batch_idx]).strip() if (batch_idx is not None and row[batch_idx] is not None) else ""
+                assigned_sec = str(row[sec_idx]).strip() if (sec_idx is not None and sec_idx < len(row) and row[sec_idx] is not None) else ""
+                assigned_bat = str(row[batch_idx]).strip() if (batch_idx is not None and batch_idx < len(row) and row[batch_idx] is not None) else ""
                 
                 if assigned_sec and assigned_bat:
                     students = db.query(Student).filter(
