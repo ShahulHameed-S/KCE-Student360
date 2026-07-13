@@ -406,17 +406,24 @@ async def upload_students(
                             db.add(new_assign)
                             
                 recalculate_student_analytics(db, student.id)
-                
-            db.commit()
             
         except Exception as e:
-            db.rollback()
             errors_list.append({
                 "row": idx,
                 "identifier": register_no if 'register_no' in locals() and register_no else "Row " + str(idx),
                 "message": str(e)
             })
             skipped += 1
+            
+    try:
+        db.commit()
+    except Exception as commit_err:
+        db.rollback()
+        errors_list.append({
+            "row": "Finalization",
+            "identifier": "Database Save",
+            "message": f"Failed to commit batch: {str(commit_err)}"
+        })
             
     return {
         "success": True,
@@ -562,16 +569,23 @@ async def upload_faculty(
                     db.flush()
                     inserted += 1
                     
-            db.commit()
-            
         except Exception as e:
-            db.rollback()
             errors_list.append({
                 "row": idx,
                 "identifier": email if 'email' in locals() and email else "Row " + str(idx),
                 "message": str(e)
             })
             skipped += 1
+            
+    try:
+        db.commit()
+    except Exception as commit_err:
+        db.rollback()
+        errors_list.append({
+            "row": "Finalization",
+            "identifier": "Database Save",
+            "message": f"Failed to commit batch: {str(commit_err)}"
+        })
             
     return {
         "success": True,
@@ -742,10 +756,7 @@ async def upload_mentors(
                             new_assign = MentorAssignment(mentor_id=user.id, student_id=s.id)
                             db.add(new_assign)
                             
-            db.commit()
-            
         except Exception as e:
-            db.rollback()
             errors_list.append({
                 "row": idx,
                 "identifier": email if 'email' in locals() and email else "Row " + str(idx),
@@ -753,6 +764,16 @@ async def upload_mentors(
             })
             skipped += 1
             
+    try:
+        db.commit()
+    except Exception as commit_err:
+        db.rollback()
+        errors_list.append({
+            "row": "Finalization",
+            "identifier": "Database Save",
+            "message": f"Failed to commit batch: {str(commit_err)}"
+        })
+        
     return {
         "success": True,
         "type": "mentors",

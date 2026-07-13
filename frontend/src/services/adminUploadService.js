@@ -9,7 +9,9 @@ export const uploadStudentsExcel = async (selectedFile) => {
     console.log("FormData:", pair[0], pair[1]);
   }
 
-  const response = await api.post("/admin/upload/students", formData);
+  const response = await api.post("/admin/upload/students", formData, {
+    timeout: 120000
+  });
   return response.data;
 };
 
@@ -21,7 +23,9 @@ export const uploadFacultyExcel = async (selectedFile) => {
     console.log("FormData:", pair[0], pair[1]);
   }
 
-  const response = await api.post("/admin/upload/faculty", formData);
+  const response = await api.post("/admin/upload/faculty", formData, {
+    timeout: 120000
+  });
   return response.data;
 };
 
@@ -33,7 +37,9 @@ export const uploadMentorsExcel = async (selectedFile) => {
     console.log("FormData:", pair[0], pair[1]);
   }
 
-  const response = await api.post("/admin/upload/mentors", formData);
+  const response = await api.post("/admin/upload/mentors", formData, {
+    timeout: 120000
+  });
   return response.data;
 };
 
