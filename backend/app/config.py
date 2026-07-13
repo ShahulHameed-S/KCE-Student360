@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = Field(default="HS256", description="JWT signature algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Token duration in minutes")
     
-    FRONTEND_URL: str = Field(default="http://localhost:5173", description="Frontend URL for CORS")
+    FRONTEND_URL: str = Field(default="https://kce-student360.vercel.app", description="Frontend URL for CORS")
     UPLOAD_DIR: str = Field(default="uploads", description="Local upload fallback directory")
     
     LLM_PROVIDER: str = Field(default="mock", description="LLM service type (mock or ollama)")
