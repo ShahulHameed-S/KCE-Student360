@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X, UserPlus, UserMinus, UserCog, Eye, Edit2, Trash2 } from "lucide-react";
 import mockUsers from "../../data/mockUsers";
 import { mockStudents } from "../../data/mockStudents";
+import { adminUploadService } from "../../services/adminUploadService";
 
 // Reusable Modal Wrapper
 const Modal = ({ isOpen, onClose, title, maxWidth = "max-w-4xl", children }) => {
@@ -2310,6 +2311,214 @@ export const SystemOverviewModal = ({ isOpen, onClose }) => {
             </div>
           </div>
         </div>
+      </div>
+    </Modal>
+  );
+};
+
+// ====================================================
+// BULK UPLOAD MODAL
+// ====================================================
+export const BulkUploadModal = ({ isOpen, onClose, type, onUploadSuccess }) => {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0]);
+      setError("");
+      setResult(null);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setError("Please select a file to upload.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    setResult(null);
+
+    try {
+      let resp;
+      if (type === "students") {
+        resp = await adminUploadService.uploadStudentsExcel(file);
+      } else if (type === "faculty") {
+        resp = await adminUploadService.uploadFacultyExcel(file);
+      } else if (type === "mentors") {
+        resp = await adminUploadService.uploadMentorsExcel(file);
+      }
+
+      if (resp && resp.success) {
+        setResult(resp);
+        if (onUploadSuccess) {
+          onUploadSuccess();
+        }
+      } else {
+        setError(resp?.message || "Failed to upload and parse file.");
+      }
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.detail || err.message || "An unexpected error occurred.";
+      setError(typeof errMsg === "string" ? errMsg : JSON.stringify(errMsg));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleClose = () => {
+    setFile(null);
+    setResult(null);
+    setError("");
+    setUploading(false);
+    onClose();
+  };
+
+  const getTitle = () => {
+    if (type === "students") return "Bulk Upload Students";
+    if (type === "faculty") return "Bulk Upload Faculty";
+    if (type === "mentors") return "Bulk Upload Mentors";
+    return "Bulk Upload";
+  };
+
+  const getTemplateInfo = () => {
+    if (type === "students") {
+      return "Required columns: register_no, name. Default password: Password123!";
+    }
+    if (type === "faculty") {
+      return "Required columns: name. Default password: Password123!";
+    }
+    if (type === "mentors") {
+      return "Required columns: name. Default password: Password123!";
+    }
+    return "";
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={handleClose} title={getTitle()} maxWidth="max-w-xl">
+      <div className="space-y-4">
+        {/* Info Box */}
+        <div className="p-3 bg-[#F7F7F7] border border-[#D1D5DB] text-[11px] text-[#214C55] font-semibold leading-relaxed">
+          <span className="font-extrabold uppercase text-[#C76F2B] block mb-1">Spreadsheet Instructions</span>
+          <p>Please upload a valid CSV (.csv) or Excel (.xlsx) file. Columns will be auto-mapped based on header names.</p>
+          <p className="mt-1 text-slate-500">{getTemplateInfo()}</p>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 text-red-800 font-bold rounded-none text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* Upload Interface */}
+        {!result && (
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-[#D1D5DB] hover:border-[#C76F2B] transition-colors p-6 text-center bg-gray-50 flex flex-col items-center justify-center cursor-pointer relative">
+              <input
+                type="file"
+                accept=".csv, .xlsx, .xls"
+                onChange={handleFileChange}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={uploading}
+              />
+              <svg className="w-8 h-8 text-[#6B7280] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              <span className="text-xs font-bold text-[#111827]">
+                {file ? file.name : "Select or drag & drop CSV/Excel file"}
+              </span>
+              <span className="text-[10px] text-[#6B7280] mt-1">Supports .csv, .xlsx, .xls formats</span>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={uploading}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={uploading || !file}
+                className={`px-4 py-2 text-white text-xs font-bold uppercase transition-colors rounded-none flex items-center gap-1.5 ${
+                  uploading || !file ? "bg-gray-400 cursor-not-allowed" : "bg-[#C76F2B] hover:bg-[#A8561F]"
+                }`}
+              >
+                {uploading ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  "Upload & Ingest"
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Results Panel */}
+        {result && (
+          <div className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 text-green-800 font-extrabold text-xs flex items-center gap-2">
+              <svg className="w-4 h-4 text-green-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+              </svg>
+              Upload processed successfully.
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div className="border border-[#D1D5DB] p-3 text-center bg-gray-50">
+                <span className="block text-[9px] font-black uppercase text-green-700">Inserted</span>
+                <span className="text-lg font-extrabold text-green-800">{result.inserted}</span>
+              </div>
+              <div className="border border-[#D1D5DB] p-3 text-center bg-gray-50">
+                <span className="block text-[9px] font-black uppercase text-blue-700">Updated</span>
+                <span className="text-lg font-extrabold text-blue-800">{result.updated}</span>
+              </div>
+              <div className="border border-[#D1D5DB] p-3 text-center bg-gray-50">
+                <span className="block text-[9px] font-black uppercase text-[#C76F2B]">Skipped/Errors</span>
+                <span className="text-lg font-extrabold text-[#C76F2B]">{result.skipped}</span>
+              </div>
+            </div>
+
+            {result.errors && result.errors.length > 0 && (
+              <div className="space-y-2 border border-[#D1D5DB] p-3 bg-white">
+                <span className="text-[10px] font-black uppercase text-red-650 block border-b border-[#E5E5E5] pb-1">
+                  Parsing Warnings & Errors ({result.errors.length})
+                </span>
+                <div className="max-h-32 overflow-y-auto divide-y divide-[#E5E5E5] text-[11px] font-semibold text-slate-600">
+                  {result.errors.map((err, i) => (
+                    <div key={i} className="py-1.5 flex justify-between">
+                      <span className="text-red-700 font-extrabold">Row {err.row} ({err.identifier}):</span>
+                      <span className="text-right leading-tight max-w-[70%]">{err.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t border-[#E5E5E5]">
+              <button
+                type="button"
+                onClick={handleClose}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

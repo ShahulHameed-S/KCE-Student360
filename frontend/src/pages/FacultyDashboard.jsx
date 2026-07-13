@@ -46,6 +46,7 @@ import { portfolioCustomizationService } from "../services/portfolioCustomizatio
 import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
+import { adminUploadService } from "../services/adminUploadService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -71,7 +72,8 @@ import {
   ConfirmRemoveMentorModal,
   ViewUserModal,
   EditUserModal,
-  ConfirmRemoveUserModal
+  ConfirmRemoveUserModal,
+  BulkUploadModal
 } from "../components/admin/AdminModals";
 
 const AssignMentorInlineForm = ({ mentors, onAssign }) => {
@@ -1127,6 +1129,37 @@ export const FacultyDashboard = () => {
   const [mentors, setMentors] = useState(() => mockUsers.filter(u => u.role === 'mentor'));
   const [usersList, setUsersList] = useState(mockUsers);
 
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+  const [bulkUploadType, setBulkUploadType] = useState("students");
+
+  const handleDownloadTemplate = (type) => {
+    let headers = "";
+    let filename = "";
+    let data = "";
+    
+    if (type === "students") {
+      headers = "register_no,name,department,year,section,email,phone,batch,mentor_email,date_of_birth,gender,address";
+      data = "\n22AD011,Mohamed Ali,Artificial Intelligence & Data Science,3,A,mohamedali@kce.ac.in,9876543210,2028,mentor@student360.com,2004-05-15,Male,Coimbatore";
+      filename = "students_upload_template.csv";
+    } else if (type === "faculty") {
+      headers = "name,department,email,phone,designation,employee_id,specialization";
+      data = "\nDr. Ravi Kumar,AI & DS,ravi.kumar@kce.ac.in,9876543210,Assistant Professor,FAC001,Machine Learning";
+      filename = "faculty_upload_template.csv";
+    } else if (type === "mentors") {
+      headers = "name,department,email,phone,designation,employee_id,assigned_section,assigned_batch";
+      data = "\nDr. Monisha R,AI & DS,monisha.r@kce.ac.in,9876543210,Mentor,MEN001,A,2028";
+      filename = "mentors_upload_template.csv";
+    }
+    
+    const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(headers + data);
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const closeModal = () => {
     setActiveModal(null);
     setSelectedItem(null);
@@ -1430,6 +1463,11 @@ export const FacultyDashboard = () => {
           setPendingApprovalsCount(Array.isArray(pendingListResp) ? pendingListResp.length : 0);
           setAllApprovals(Array.isArray(fullListResp) ? fullListResp : []);
           setUploadedScoresCount(scoresCountResp);
+
+          if (user?.role === "admin") {
+            adminUploadService.getFacultyList().then(res => setFaculties(res)).catch(e => console.warn(e));
+            adminUploadService.getMentorsList().then(res => setMentors(res)).catch(e => console.warn(e));
+          }
 
           console.log("Faculty students:", studentListResp);
         } catch (err) {
@@ -3616,6 +3654,19 @@ export const FacultyDashboard = () => {
                     <UserMinus size={14} />
                     Remove Student Bulk
                   </button>
+                  <button 
+                    onClick={() => { setBulkUploadType("students"); setIsBulkUploadOpen(true); }}
+                    className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    <Upload size={14} />
+                    Upload Excel
+                  </button>
+                  <button 
+                    onClick={() => handleDownloadTemplate("students")}
+                    className="px-4 py-2 bg-white border border-[#C76F2B] text-[#C76F2B] hover:bg-[#C76F2B] hover:text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    Download Template
+                  </button>
                 </div>
               </div>
 
@@ -3710,6 +3761,19 @@ export const FacultyDashboard = () => {
                     <UserMinus size={14} />
                     Remove Faculty Bulk
                   </button>
+                  <button 
+                    onClick={() => { setBulkUploadType("faculty"); setIsBulkUploadOpen(true); }}
+                    className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    <Upload size={14} />
+                    Upload Excel
+                  </button>
+                  <button 
+                    onClick={() => handleDownloadTemplate("faculty")}
+                    className="px-4 py-2 bg-white border border-[#C76F2B] text-[#C76F2B] hover:bg-[#C76F2B] hover:text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    Download Template
+                  </button>
                 </div>
               </div>
 
@@ -3801,6 +3865,19 @@ export const FacultyDashboard = () => {
                   >
                     <UserMinus size={14} />
                     Remove Mentor Bulk
+                  </button>
+                  <button 
+                    onClick={() => { setBulkUploadType("mentors"); setIsBulkUploadOpen(true); }}
+                    className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    <Upload size={14} />
+                    Upload Excel
+                  </button>
+                  <button 
+                    onClick={() => handleDownloadTemplate("mentors")}
+                    className="px-4 py-2 bg-white border border-[#C76F2B] text-[#C76F2B] hover:bg-[#C76F2B] hover:text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors rounded-none"
+                  >
+                    Download Template
                   </button>
                 </div>
               </div>
@@ -4191,6 +4268,23 @@ export const FacultyDashboard = () => {
           onClose={() => setActiveModal(null)}
           user={selectedItem}
           onRemove={handleRemoveUser}
+        />
+        <BulkUploadModal
+          isOpen={isBulkUploadOpen}
+          onClose={() => setIsBulkUploadOpen(false)}
+          type={bulkUploadType}
+          onUploadSuccess={async () => {
+            if (bulkUploadType === "students") {
+              const updated = await studentService.getAllStudents();
+              setStudents(updated);
+            } else if (bulkUploadType === "faculty") {
+              const updated = await adminUploadService.getFacultyList();
+              setFaculties(updated);
+            } else if (bulkUploadType === "mentors") {
+              const updated = await adminUploadService.getMentorsList();
+              setMentors(updated);
+            }
+          }}
         />
       </div>
     );
