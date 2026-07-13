@@ -4,6 +4,10 @@ import { useAuth } from "../hooks/useAuth";
 import { AlertCircle } from "lucide-react";
 import { KCE_LOGO_URL, KCE_LOGO_ALT } from "../config/branding";
 
+console.log("MODE:", import.meta.env.MODE);
+console.log("PROD:", import.meta.env.PROD);
+console.log("API URL:", import.meta.env.VITE_API_BASE_URL);
+
 export const LoginPage = () => {
   const { login, backendError } = useAuth();
   const navigate = useNavigate();

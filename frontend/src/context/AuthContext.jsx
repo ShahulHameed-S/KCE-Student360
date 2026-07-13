@@ -2,6 +2,10 @@ import React, { createContext, useState, useEffect } from "react";
 import { authService } from "../services/authService";
 import { studentSubmissionService } from "../services/studentSubmissionService";
 
+console.log("MODE:", import.meta.env.MODE);
+console.log("PROD:", import.meta.env.PROD);
+console.log("API URL:", import.meta.env.VITE_API_BASE_URL);
+
 export const AuthContext = createContext();
 
 const MOCK_USERS = [
@@ -16,8 +20,17 @@ const getErrorMessage = (error) => {
 
   if (typeof error === "string") return error;
 
+  // Explicit check for 401 Unauthorized to show "Invalid credentials"
+  if (error.response && error.response.status === 401) {
+    return "Invalid credentials";
+  }
+
   if (error.response?.data?.error?.message) {
     return error.response.data.error.message;
+  }
+
+  if (error.response?.data?.detail?.error?.message) {
+    return error.response.data.detail.error.message;
   }
 
   if (error.response?.data?.detail) {
@@ -90,7 +103,7 @@ export const AuthProvider = ({ children }) => {
     console.log("Login identifier:", email);
     
     try {
-      // 1. Attempt backend login
+      // 1. Attempt login (authService.login handles mock fallback internally for local dev)
       const response = await authService.login(email, password);
       console.log("Login response:", response);
       
@@ -112,51 +125,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return response.user;
     } catch (error) {
-      console.log("Login error response:", error.response?.data);
+      console.log("Login error response:", error.response?.data || error.message || error);
+      setLoading(false);
       
+      // Set backendError warning banner if it's a network error
       if (error.code === "ERR_NETWORK" || !error.response) {
-        console.warn("Backend server is not running. Falling back to mock authentication.");
         setBackendError("Backend server is not running. Please start FastAPI backend.");
-        
-        // Mock fallback
-        const foundUser = MOCK_USERS.find(
-          (u) => (u.email.toLowerCase() === email.toLowerCase() || u.role === email) && u.password === password
-        );
-
-        if (foundUser) {
-          const userData = {
-            id: foundUser.role === "student" ? 1 : 99,
-            name: foundUser.name,
-            email: foundUser.email,
-            username: foundUser.role,
-            role: foundUser.role,
-            studentId: foundUser.studentId ? parseInt(foundUser.studentId) : null,
-            student_id: foundUser.studentId ? parseInt(foundUser.studentId) : null,
-            registerNo: foundUser.registerNo || null,
-            register_no: foundUser.registerNo || null,
-            profileImage: null,
-            profile_image: null
-          };
-          
-          const mockToken = `mock-jwt-token-for-${foundUser.role}`;
-          localStorage.setItem("access_token", mockToken);
-          localStorage.setItem("currentUser", JSON.stringify(userData));
-          localStorage.setItem("user", JSON.stringify(userData));
-          localStorage.setItem("token", mockToken);
-          
-          setUser(userData);
-          setLoading(false);
-          return userData;
-        } else {
-          setLoading(false);
-          throw new Error("Invalid credentials (Mock Fallback)");
-        }
-      } else {
-        setLoading(false);
-        // Error returned from backend, extract message safely
-        const detailMsg = getErrorMessage(error);
-        throw new Error(detailMsg);
       }
+      
+      // Extract error message safely
+      const detailMsg = getErrorMessage(error);
+      throw new Error(detailMsg);
     }
   };
 

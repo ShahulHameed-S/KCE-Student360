@@ -1,6 +1,12 @@
 import axios from "axios";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Temporary console logs for environment debugging
+console.log("MODE:", import.meta.env.MODE);
+console.log("PROD:", import.meta.env.PROD);
+console.log("API URL:", import.meta.env.VITE_API_BASE_URL);
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -41,4 +47,5 @@ api.interceptors.response.use(
   }
 );
 
+export { API_BASE_URL };
 export default api;
