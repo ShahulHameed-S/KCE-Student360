@@ -2338,6 +2338,10 @@ export const BulkUploadModal = ({ isOpen, onClose, type, onUploadSuccess }) => {
       setError("Please select a file to upload.");
       return;
     }
+    console.log("Selected file:", file);
+    console.log("File name:", file?.name);
+    console.log("File size:", file?.size);
+
     setUploading(true);
     setError("");
     setResult(null);

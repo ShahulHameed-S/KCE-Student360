@@ -23,6 +23,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // If the data is FormData, remove the default Content-Type header
+    // so Axios and the browser can automatically set the correct boundary
+    if (config.data instanceof FormData) {
+      if (config.headers && typeof config.headers.delete === "function") {
+        config.headers.delete("Content-Type");
+      } else if (config.headers) {
+        delete config.headers["Content-Type"];
+        delete config.headers["content-type"];
+      }
+    }
     return config;
   },
   (error) => {
