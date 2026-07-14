@@ -48,6 +48,11 @@ export const adminUploadService = {
   uploadFacultyExcel,
   uploadMentorsExcel,
 
+  getStudentsList: async () => {
+    const response = await api.get("/admin/students");
+    return response.data;
+  },
+
   getFacultyList: async () => {
     try {
       const response = await api.get("/admin/faculty");
