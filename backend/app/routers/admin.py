@@ -29,8 +29,38 @@ async def get_admin_overview():
 
 # Students CRUD
 @router.get("/students")
-async def admin_get_students():
-    return []
+async def admin_get_students(
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    students = db.query(Student).all()
+    print("Admin students count:", len(students))
+    result = []
+    for s in students:
+        s_data = {
+            "id": s.id,
+            "register_no": s.register_no,
+            "name": s.name,
+            "email": s.email,
+            "phone": s.phone,
+            "department": s.department,
+            "year": s.year,
+            "section": s.section,
+            "batch": s.batch,
+            "user_id": s.user_id,
+        }
+        if s.user:
+            s_data["user_email"] = s.user.email
+            s_data["role"] = s.user.role
+            s_data["is_active"] = s.user.is_active
+            s_data["status"] = "Active" if s.user.is_active else "Inactive"
+        else:
+            s_data["user_email"] = None
+            s_data["role"] = None
+            s_data["is_active"] = None
+            s_data["status"] = "Inactive"
+        result.append(s_data)
+    return result
 
 @router.post("/students")
 async def admin_create_student(payload: Dict[str, Any]):
