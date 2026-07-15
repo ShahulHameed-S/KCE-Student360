@@ -47,6 +47,7 @@ import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
 import { adminUploadService } from "../services/adminUploadService";
+import { getAdminStudents } from "../services/adminService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -1168,18 +1169,16 @@ export const FacultyDashboard = () => {
     setSelectedItem(null);
   };
 
-  const fetchAdminStudents = async () => {
+  const loadAdminStudents = async () => {
     try {
       setAdminStudentsLoading(true);
       setAdminStudentsError("");
-      const response = await adminUploadService.getStudentsList();
-      const students = Array.isArray(response) ? response : [];
+      const students = await getAdminStudents();
       console.log("Admin students API response:", students);
-      setAdminStudents(students);
-    } catch (err) {
-      console.error("Error loading admin students:", err);
+      setAdminStudents(Array.isArray(students) ? students : []);
+    } catch (error) {
+      console.error("Admin students load error:", error);
       setAdminStudentsError("Unable to load students from server.");
-      setAdminStudents([]);
     } finally {
       setAdminStudentsLoading(false);
     }
@@ -1187,7 +1186,7 @@ export const FacultyDashboard = () => {
 
   useEffect(() => {
     if (user?.role === "admin" && adminSection === "manage-students") {
-      fetchAdminStudents();
+      loadAdminStudents();
     }
   }, [adminSection, user]);
 
@@ -3547,6 +3546,9 @@ export const FacultyDashboard = () => {
   // Helper to switch section and sync sidebar highlight
   const handleSectionSwitch = (section) => {
     setAdminSection(section);
+    if (section === "manage-students") {
+      loadAdminStudents();
+    }
     window.dispatchEvent(
       new CustomEvent("admin-sidebar-action", {
         detail: section
@@ -3726,49 +3728,52 @@ export const FacultyDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                      {adminStudents.map((s) => (
-                        <tr key={s.id} className="hover:bg-[#F7F7F7] transition-colors">
-                          <td className="py-2.5 px-4 text-[#C76F2B]">{s.register_no}</td>
-                          <td className="py-2.5 px-4 text-[#214C55]">{s.name}</td>
-                          <td className="py-2.5 px-4 font-semibold text-slate-600">{s.department}</td>
-                          <td className="py-2.5 px-4 text-center">{s.year}</td>
-                          <td className="py-2.5 px-4 text-center">{s.section}</td>
-                          <td className="py-2.5 px-4 text-center">
-                            <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
-                              s.status === "Inactive" 
-                                ? "bg-red-50 text-red-700 border-red-200" 
-                                : "bg-green-50 text-green-700 border-green-200"
-                            }`}>
-                              {s.status || "Active"}
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-4 text-center">
-                            <div className="flex justify-center space-x-1.5">
-                              <button 
-                                onClick={() => { setSelectedItem(s); setActiveModal('viewStudent'); }} 
-                                title="View Details"
-                                className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center"
-                              >
-                                <Eye size={13} />
-                              </button>
-                              <button 
-                                onClick={() => { setSelectedItem(s); setActiveModal('editStudent'); }} 
-                                title="Edit Student"
-                                className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
-                              >
-                                <Edit2 size={13} />
-                              </button>
-                              <button 
-                                onClick={() => { setSelectedItem(s); setActiveModal('confirmRemoveStudent'); }} 
-                                title="Remove Student"
-                                className="p-1 text-red-650 hover:bg-red-50 border border-red-205 flex items-center justify-center animate-fade-in"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                      {adminStudents.map((s) => {
+                        const displayStatus = s.status || (s.is_active ? "Active" : "Inactive");
+                        return (
+                          <tr key={s.id} className="hover:bg-[#F7F7F7] transition-colors">
+                            <td className="py-2.5 px-4 text-[#C76F2B]">{s.register_no}</td>
+                            <td className="py-2.5 px-4 text-[#214C55]">{s.name}</td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-600">{s.department}</td>
+                            <td className="py-2.5 px-4 text-center">{s.year}</td>
+                            <td className="py-2.5 px-4 text-center">{s.section}</td>
+                            <td className="py-2.5 px-4 text-center">
+                              <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
+                                displayStatus === "Inactive" 
+                                  ? "bg-red-50 text-red-700 border-red-200" 
+                                  : "bg-green-50 text-green-700 border-green-200"
+                              }`}>
+                                {displayStatus}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-center">
+                              <div className="flex justify-center space-x-1.5">
+                                <button 
+                                  onClick={() => { setSelectedItem(s); setActiveModal('viewStudent'); }} 
+                                  title="View Details"
+                                  className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center"
+                                >
+                                  <Eye size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => { setSelectedItem(s); setActiveModal('editStudent'); }} 
+                                  title="Edit Student"
+                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => { setSelectedItem(s); setActiveModal('confirmRemoveStudent'); }} 
+                                  title="Remove Student"
+                                  className="p-1 text-red-650 hover:bg-red-50 border border-red-205 flex items-center justify-center animate-fade-in"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -4320,7 +4325,7 @@ export const FacultyDashboard = () => {
             if (bulkUploadType === "students") {
               const updated = await studentService.getAllStudents();
               setStudents(updated);
-              fetchAdminStudents();
+              loadAdminStudents();
             } else if (bulkUploadType === "faculty") {
               const updated = await adminUploadService.getFacultyList();
               setFaculties(updated);
