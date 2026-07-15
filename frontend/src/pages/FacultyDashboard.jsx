@@ -1190,6 +1190,18 @@ export const FacultyDashboard = () => {
     }
   }, [adminSection, user]);
 
+  useEffect(() => {
+    if (user?.role === "admin" && adminSection === "manage-faculty") {
+      adminUploadService.getFacultyList().then(res => setFaculties(res)).catch(e => console.warn(e));
+    }
+  }, [adminSection, user]);
+
+  useEffect(() => {
+    if (user?.role === "admin" && (adminSection === "manage-mentors" || adminSection === "assign-mentor")) {
+      adminUploadService.getMentorsList().then(res => setMentors(res)).catch(e => console.warn(e));
+    }
+  }, [adminSection, user]);
+
   // Mock handlers for data mutation
   const handleAddStudent = (newStudent) => {
     setStudents(prev => [...prev, newStudent]);
@@ -1473,28 +1485,36 @@ export const FacultyDashboard = () => {
           setLoading(true);
           setError("");
 
-          // Execute parallel requests safely
-          const results = await Promise.allSettled([
-            studentService.getAllStudents(),
-            mentorService.getPendingApprovals(),
-            mentorService.getAllApprovals(),
-            uploadService.getScoresCount()
-          ]);
-
-          const studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
-          const pendingListResp = results[1].status === "fulfilled" ? results[1].value : [];
-          const fullListResp = results[2].status === "fulfilled" ? results[2].value : [];
-          const scoresCountResp = results[3].status === "fulfilled" ? results[3].value : 142;
-
-          setStudents(Array.isArray(studentListResp) ? studentListResp : []);
-          setPendingApprovals(Array.isArray(pendingListResp) ? pendingListResp : []);
-          setPendingApprovalsCount(Array.isArray(pendingListResp) ? pendingListResp.length : 0);
-          setAllApprovals(Array.isArray(fullListResp) ? fullListResp : []);
-          setUploadedScoresCount(scoresCountResp);
-
           if (user?.role === "admin") {
-            adminUploadService.getFacultyList().then(res => setFaculties(res)).catch(e => console.warn(e));
-            adminUploadService.getMentorsList().then(res => setMentors(res)).catch(e => console.warn(e));
+            const results = await Promise.allSettled([
+              studentService.getAllStudents(),
+              uploadService.getScoresCount()
+            ]);
+
+            const studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
+            const scoresCountResp = results[1].status === "fulfilled" ? results[1].value : 142;
+
+            setStudents(Array.isArray(studentListResp) ? studentListResp : []);
+            setUploadedScoresCount(scoresCountResp);
+          } else {
+            // Execute parallel requests safely for other roles
+            const results = await Promise.allSettled([
+              studentService.getAllStudents(),
+              mentorService.getPendingApprovals(),
+              mentorService.getAllApprovals(),
+              uploadService.getScoresCount()
+            ]);
+
+            const studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
+            const pendingListResp = results[1].status === "fulfilled" ? results[1].value : [];
+            const fullListResp = results[2].status === "fulfilled" ? results[2].value : [];
+            const scoresCountResp = results[3].status === "fulfilled" ? results[3].value : 142;
+
+            setStudents(Array.isArray(studentListResp) ? studentListResp : []);
+            setPendingApprovals(Array.isArray(pendingListResp) ? pendingListResp : []);
+            setPendingApprovalsCount(Array.isArray(pendingListResp) ? pendingListResp.length : 0);
+            setAllApprovals(Array.isArray(fullListResp) ? fullListResp : []);
+            setUploadedScoresCount(scoresCountResp);
           }
 
           console.log("Faculty students:", studentListResp);
@@ -3704,7 +3724,7 @@ export const FacultyDashboard = () => {
               <div className="overflow-x-auto border border-[#D1D5DB]">
                 {adminStudentsLoading ? (
                   <div className="p-8 text-center text-xs font-bold text-slate-500">
-                    Loading students...
+                    Loading students from server...
                   </div>
                 ) : adminStudentsError ? (
                   <div className="p-8 text-center text-xs font-bold text-red-600">

@@ -49,13 +49,17 @@ export const adminUploadService = {
   uploadMentorsExcel,
 
   getStudentsList: async () => {
-    const response = await api.get("/admin/students");
+    const response = await api.get("/admin/students", {
+      timeout: 120000
+    });
     return response.data;
   },
 
   getFacultyList: async () => {
     try {
-      const response = await api.get("/admin/faculty");
+      const response = await api.get("/admin/faculty", {
+        timeout: 120000
+      });
       return response.data;
     } catch (error) {
       console.warn("Get Faculty API failed, returning mock faculty:", error.message);
@@ -65,7 +69,9 @@ export const adminUploadService = {
 
   getMentorsList: async () => {
     try {
-      const response = await api.get("/admin/mentors");
+      const response = await api.get("/admin/mentors", {
+        timeout: 120000
+      });
       return response.data;
     } catch (error) {
       console.warn("Get Mentors API failed, returning mock mentors:", error.message);
