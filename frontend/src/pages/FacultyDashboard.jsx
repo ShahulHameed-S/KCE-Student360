@@ -1061,7 +1061,7 @@ export const FacultyDashboard = () => {
   const [staffSection, setStaffSection] = useState("dashboard"); // "dashboard", "profile"
   const [resumeData, setResumeData] = useState(null);
   const [resumeMessage, setResumeMessage] = useState("");
-  const [uploadedScoresCount, setUploadedScoresCount] = useState(142);
+  const [uploadedScoresCount, setUploadedScoresCount] = useState(0);
   const [myProfileData, setMyProfileData] = useState(null);
   const [profileMessage, setProfileMessage] = useState("");
   const [activeForm, setActiveForm] = useState(null); // "project" | "certification" | "achievement" | null
@@ -1129,9 +1129,9 @@ export const FacultyDashboard = () => {
   const [activeModal, setActiveModal] = useState(null);
   const [adminSection, setAdminSection] = useState("dashboard");
   const [selectedItem, setSelectedItem] = useState(null);
-  const [faculties, setFaculties] = useState(() => mockUsers.filter(u => u.role === 'faculty'));
-  const [mentors, setMentors] = useState(() => mockUsers.filter(u => u.role === 'mentor'));
-  const [usersList, setUsersList] = useState(mockUsers);
+  const [faculties, setFaculties] = useState([]);
+  const [mentors, setMentors] = useState([]);
+  const [usersList, setUsersList] = useState([]);
 
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [bulkUploadType, setBulkUploadType] = useState("students");
@@ -1485,16 +1485,16 @@ export const FacultyDashboard = () => {
           setLoading(true);
           setError("");
 
+          let studentListResp = [];
+
           if (user?.role === "admin") {
             const results = await Promise.allSettled([
-              studentService.getAllStudents(),
               uploadService.getScoresCount()
             ]);
 
-            const studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
-            const scoresCountResp = results[1].status === "fulfilled" ? results[1].value : 142;
+            const scoresCountResp = results[0].status === "fulfilled" ? results[0].value : 0;
 
-            setStudents(Array.isArray(studentListResp) ? studentListResp : []);
+            setStudents([]);
             setUploadedScoresCount(scoresCountResp);
           } else {
             // Execute parallel requests safely for other roles
@@ -1505,10 +1505,18 @@ export const FacultyDashboard = () => {
               uploadService.getScoresCount()
             ]);
 
-            const studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
+            studentListResp = results[0].status === "fulfilled" ? results[0].value : [];
             const pendingListResp = results[1].status === "fulfilled" ? results[1].value : [];
             const fullListResp = results[2].status === "fulfilled" ? results[2].value : [];
-            const scoresCountResp = results[3].status === "fulfilled" ? results[3].value : 142;
+            const scoresCountResp = results[3].status === "fulfilled" ? results[3].value : 0;
+
+            const allCriticalFailed = results[0].status === "rejected" && 
+                                     results[1].status === "rejected" && 
+                                     results[2].status === "rejected";
+
+            if (allCriticalFailed) {
+              throw new Error("All critical dashboard endpoints failed to respond.");
+            }
 
             setStudents(Array.isArray(studentListResp) ? studentListResp : []);
             setPendingApprovals(Array.isArray(pendingListResp) ? pendingListResp : []);
@@ -1519,7 +1527,7 @@ export const FacultyDashboard = () => {
 
           console.log("Faculty students:", studentListResp);
         } catch (err) {
-          console.error("Faculty dashboard load error:", err);
+          console.error("Dashboard data load failed:", err);
           setError("Failed to load dashboard parameters");
         } finally {
           setLoading(false);
@@ -1557,7 +1565,9 @@ export const FacultyDashboard = () => {
   }, [user]);
 
   // Global calculations safely safeguarded
-  const totalStudents = Array.isArray(students) ? students.length : 0;
+  const totalStudents = user?.role === "admin"
+    ? (Array.isArray(adminStudents) && adminStudents.length > 0 ? adminStudents.length : 0)
+    : (Array.isArray(students) ? students.length : 0);
   
   const overallAverage = totalStudents > 0
     ? students.reduce((acc, curr) => {
@@ -3596,8 +3606,8 @@ export const FacultyDashboard = () => {
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <StatCard title="Total Students" value={totalStudents} icon={Users} description="Registered student accounts" />
-              <StatCard title="Total Faculty" value="8" icon={GraduationCap} description="Registered faculty roles" />
-              <StatCard title="Total Mentors" value="12" icon={CheckSquare} description="Assigned mentors" />
+              <StatCard title="Total Faculty" value={faculties.length} icon={GraduationCap} description="Registered faculty roles" />
+              <StatCard title="Total Mentors" value={mentors.length} icon={CheckSquare} description="Assigned mentors" />
               <StatCard 
                 title="Total Uploaded Scores" 
                 value={uploadedScoresCount} 
