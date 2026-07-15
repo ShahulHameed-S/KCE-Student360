@@ -154,8 +154,31 @@ async def admin_delete_mentor(id: int):
 
 # Users CRUD
 @router.get("/users")
-async def admin_get_users():
-    return []
+async def admin_get_users(
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    users = db.query(User).all()
+    result = []
+    for u in users:
+        dept = None
+        if u.student_profile and u.student_profile.department:
+            dept = u.student_profile.department
+        elif u.faculty_profile and u.faculty_profile.department:
+            dept = u.faculty_profile.department
+        elif u.user_profile and u.user_profile.department:
+            dept = u.user_profile.department
+
+        result.append({
+            "id": u.id,
+            "email": u.email,
+            "username": u.username,
+            "role": u.role,
+            "is_active": u.is_active,
+            "department": dept or "-",
+            "name": u.name
+        })
+    return result
 
 @router.post("/users")
 async def admin_create_user(payload: Dict[str, Any]):

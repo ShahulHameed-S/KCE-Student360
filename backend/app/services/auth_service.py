@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException, status
 from app.models.user import User
 from app.models.student import Student
@@ -10,15 +11,22 @@ def authenticate_user(db: Session, identifier: str, password_plain: str):
     Verifies password and returns the User object if successful.
     Raises 403 if user is inactive. Returns None if invalid credentials.
     """
-    # 1. Search by email or username in User table
+    if not identifier:
+        return None
+        
+    identifier = identifier.strip()
+
+    # 1. Search by email or username in User table case-insensitively
     user = db.query(User).filter(
-        (User.email == identifier) | 
-        (User.username == identifier)
+        (func.lower(User.email) == identifier.lower()) | 
+        (func.lower(User.username) == identifier.lower())
     ).first()
     
-    # 2. If not found, check if it's a student's register number
+    # 2. If not found, check if it's a student's register number case-insensitively
     if not user:
-        student = db.query(Student).filter(Student.register_no == identifier).first()
+        student = db.query(Student).filter(
+            func.lower(Student.register_no) == identifier.lower()
+        ).first()
         if student:
             user = db.query(User).filter(User.id == student.user_id).first()
 
