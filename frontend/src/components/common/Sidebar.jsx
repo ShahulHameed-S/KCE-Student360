@@ -89,12 +89,6 @@ export const Sidebar = () => {
       roles: ["admin"]
     },
     {
-      name: "Manage Users",
-      action: "manage-users",
-      icon: Users,
-      roles: ["admin"]
-    },
-    {
       name: "System Overview",
       action: "system-overview",
       icon: Settings,

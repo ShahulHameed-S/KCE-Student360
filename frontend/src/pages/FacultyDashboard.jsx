@@ -1315,6 +1315,11 @@ export const FacultyDashboard = () => {
   useEffect(() => {
     const handleAdminAction = (event) => {
       const action = event.detail;
+      if (action === "manage-users") {
+        setAdminSection("dashboard");
+        setActiveModal(null);
+        return;
+      }
       if ([
         "dashboard",
         "profile",
@@ -1322,7 +1327,6 @@ export const FacultyDashboard = () => {
         "manage-faculty",
         "manage-mentors",
         "assign-mentor",
-        "manage-users",
         "system-overview"
       ].includes(action)) {
         setAdminSection(action);
@@ -3632,11 +3636,13 @@ export const FacultyDashboard = () => {
 
   // Helper to switch section and sync sidebar highlight
   const handleSectionSwitch = (section) => {
+    if (section === "manage-users") {
+      setAdminSection("dashboard");
+      return;
+    }
     setAdminSection(section);
     if (section === "manage-students") {
       loadAdminStudents();
-    } else if (section === "manage-users") {
-      loadAdminUsers();
     }
     window.dispatchEvent(
       new CustomEvent("admin-sidebar-action", {
@@ -4098,111 +4104,7 @@ export const FacultyDashboard = () => {
           </div>
         )}
 
-        {adminSection === "manage-users" && (
-          <div className="space-y-6">
-            <div className="bg-[#163941] p-6 rounded-none text-white border border-[#D1D5DB]">
-              <h1 className="text-xl font-extrabold uppercase tracking-wider text-white">Manage Users</h1>
-              <p className="text-xs text-[#E5E5E5] font-semibold mt-1.5 leading-relaxed">
-                View, edit, activate, deactivate, or remove user accounts.
-              </p>
-            </div>
 
-            <div className="bg-white p-6 border border-[#D1D5DB] rounded-none space-y-4">
-              <div className="border-b border-[#E5E5E5] pb-3">
-                <h3 className="text-xs font-extrabold text-[#214C55] uppercase tracking-wider">User Roles & Accounts</h3>
-                <p className="text-[11px] text-[#6B7280]">Inspect user accounts, assign roles, and activate/deactivate accounts.</p>
-              </div>
-
-              <div className="overflow-x-auto border border-[#D1D5DB]">
-                {adminUsersLoading ? (
-                  <div className="p-8 text-center text-xs font-bold text-slate-500">
-                    Loading users from server...
-                  </div>
-                ) : adminUsersError ? (
-                  <div className="p-8 text-center text-xs font-bold text-red-600">
-                    {adminUsersError}
-                  </div>
-                ) : usersList.length === 0 ? (
-                  <div className="p-8 text-center text-xs font-bold text-slate-500">
-                    No users found.
-                  </div>
-                ) : (
-                  <table className="w-full text-left border-collapse bg-white">
-                    <thead>
-                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
-                        <th className="py-3 px-4">Name</th>
-                        <th className="py-3 px-4">Email</th>
-                        <th className="py-3 px-4">Role</th>
-                        <th className="py-3 px-4">Department</th>
-                        <th className="py-3 px-4 text-center">Status</th>
-                        <th className="py-3 px-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                      {usersList.map((u) => {
-                        const displayName = u.name || u.username || u.email;
-                        const displayDept = u.department || "-";
-                        const displayStatus = u.status || (u.is_active ? "Active" : "Inactive");
-                        return (
-                          <tr key={u.id} className="hover:bg-[#F7F7F7] transition-colors">
-                            <td className="py-2.5 px-4 text-[#214C55]">{displayName}</td>
-                            <td className="py-2.5 px-4 font-semibold text-slate-600">{u.email}</td>
-                            <td className="py-2.5 px-4 uppercase text-[10px] text-[#C76F2B] font-extrabold">{u.role}</td>
-                            <td className="py-2.5 px-4 font-semibold text-slate-600">{displayDept}</td>
-                            <td className="py-2.5 px-4 text-center">
-                              <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
-                                displayStatus === "Inactive" 
-                                  ? "bg-red-50 text-red-700 border-red-200" 
-                                  : "bg-green-50 text-green-700 border-green-200"
-                              }`}>
-                                {displayStatus}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-4 text-center">
-                              <div className="flex justify-center space-x-1.5 animate-fade-in">
-                                <button 
-                                  onClick={() => { setSelectedItem(u); setActiveModal('viewUser'); }} 
-                                  title="View Details"
-                                  className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in"
-                                >
-                                  <Eye size={13} />
-                                </button>
-                                <button 
-                                  onClick={() => { setSelectedItem(u); setActiveModal('editUser'); }} 
-                                  title="Edit User"
-                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
-                                >
-                                  <Edit2 size={13} />
-                                </button>
-                                <button 
-                                  onClick={() => handleToggleUserStatus(u.id)} 
-                                  className={`px-2 py-1 text-[10px] font-extrabold border transition-all ${
-                                    displayStatus === "Inactive"
-                                      ? "border-green-300 text-green-700 hover:bg-green-50"
-                                      : "border-orange-300 text-orange-700 hover:bg-orange-50"
-                                  }`}
-                                >
-                                  {displayStatus === "Inactive" ? "Activate" : "Deactivate"}
-                                </button>
-                                <button 
-                                  onClick={() => { setSelectedItem(u); setActiveModal('confirmRemoveUser'); }} 
-                                  title="Remove User"
-                                  className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {adminSection === "system-overview" && (
           <div className="space-y-6">
