@@ -23,3 +23,11 @@ export const getAdminMentors = async () => {
   const data = response.data;
   return Array.isArray(data) ? data : data.items || data.data || data.mentors || [];
 };
+
+export const getAdminUsers = async () => {
+  const response = await api.get("/admin/users", {
+    timeout: 120000
+  });
+  const data = response.data;
+  return Array.isArray(data) ? data : data.users || data.data || [];
+};

@@ -47,7 +47,7 @@ import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
 import { adminUploadService } from "../services/adminUploadService";
-import { getAdminStudents, getAdminFaculty, getAdminMentors } from "../services/adminService";
+import { getAdminStudents, getAdminFaculty, getAdminMentors, getAdminUsers } from "../services/adminService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -1044,6 +1044,8 @@ export const FacultyDashboard = () => {
   const [adminTotalStudents, setAdminTotalStudents] = useState(0);
   const [adminTotalFaculty, setAdminTotalFaculty] = useState(0);
   const [adminTotalMentors, setAdminTotalMentors] = useState(0);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminUsersError, setAdminUsersError] = useState("");
 
   // Student specific data states
   const [studentProfile, setStudentProfile] = useState(null);
@@ -1187,9 +1189,31 @@ export const FacultyDashboard = () => {
     }
   };
 
+  const loadAdminUsers = async () => {
+    try {
+      setAdminUsersLoading(true);
+      setAdminUsersError("");
+      const users = await getAdminUsers();
+      console.log("Admin users API response:", users);
+      setUsersList(Array.isArray(users) ? users : []);
+    } catch (error) {
+      console.error("Admin users load error:", error);
+      setAdminUsersError("Unable to load users from server.");
+      setUsersList([]);
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === "admin" && adminSection === "manage-students") {
       loadAdminStudents();
+    }
+  }, [adminSection, user]);
+
+  useEffect(() => {
+    if (user?.role === "admin" && adminSection === "manage-users") {
+      loadAdminUsers();
     }
   }, [adminSection, user]);
 
@@ -3611,6 +3635,8 @@ export const FacultyDashboard = () => {
     setAdminSection(section);
     if (section === "manage-students") {
       loadAdminStudents();
+    } else if (section === "manage-users") {
+      loadAdminUsers();
     }
     window.dispatchEvent(
       new CustomEvent("admin-sidebar-action", {
@@ -4088,72 +4114,91 @@ export const FacultyDashboard = () => {
               </div>
 
               <div className="overflow-x-auto border border-[#D1D5DB]">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
-                      <th className="py-3 px-4">Name</th>
-                      <th className="py-3 px-4">Email</th>
-                      <th className="py-3 px-4">Role</th>
-                      <th className="py-3 px-4">Department</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                    {usersList.map((u) => (
-                      <tr key={u.id} className="hover:bg-[#F7F7F7] transition-colors">
-                        <td className="py-2.5 px-4 text-[#214C55]">{u.name}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{u.email}</td>
-                        <td className="py-2.5 px-4 uppercase text-[10px] text-[#C76F2B] font-extrabold">{u.role}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{u.department}</td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
-                            u.status === "Inactive" 
-                              ? "bg-red-50 text-red-700 border-red-200" 
-                              : "bg-green-50 text-green-700 border-green-200"
-                          }`}>
-                            {u.status || "Active"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <div className="flex justify-center space-x-1.5 animate-fade-in">
-                            <button 
-                              onClick={() => { setSelectedItem(u); setActiveModal('viewUser'); }} 
-                              title="View Details"
-                              className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in"
-                            >
-                              <Eye size={13} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(u); setActiveModal('editUser'); }} 
-                              title="Edit User"
-                              className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button 
-                              onClick={() => handleToggleUserStatus(u.id)} 
-                              className={`px-2 py-1 text-[10px] font-extrabold border transition-all ${
-                                u.status === "Inactive"
-                                  ? "border-green-300 text-green-700 hover:bg-green-50"
-                                  : "border-orange-300 text-orange-700 hover:bg-orange-50"
-                              }`}
-                            >
-                              {u.status === "Inactive" ? "Activate" : "Deactivate"}
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(u); setActiveModal('confirmRemoveUser'); }} 
-                              title="Remove User"
-                              className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
+                {adminUsersLoading ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500">
+                    Loading users from server...
+                  </div>
+                ) : adminUsersError ? (
+                  <div className="p-8 text-center text-xs font-bold text-red-600">
+                    {adminUsersError}
+                  </div>
+                ) : usersList.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500">
+                    No users found.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
+                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">Email</th>
+                        <th className="py-3 px-4">Role</th>
+                        <th className="py-3 px-4">Department</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
+                      {usersList.map((u) => {
+                        const displayName = u.name || u.username || u.email;
+                        const displayDept = u.department || "-";
+                        const displayStatus = u.status || (u.is_active ? "Active" : "Inactive");
+                        return (
+                          <tr key={u.id} className="hover:bg-[#F7F7F7] transition-colors">
+                            <td className="py-2.5 px-4 text-[#214C55]">{displayName}</td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-600">{u.email}</td>
+                            <td className="py-2.5 px-4 uppercase text-[10px] text-[#C76F2B] font-extrabold">{u.role}</td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-600">{displayDept}</td>
+                            <td className="py-2.5 px-4 text-center">
+                              <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
+                                displayStatus === "Inactive" 
+                                  ? "bg-red-50 text-red-700 border-red-200" 
+                                  : "bg-green-50 text-green-700 border-green-200"
+                              }`}>
+                                {displayStatus}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 text-center">
+                              <div className="flex justify-center space-x-1.5 animate-fade-in">
+                                <button 
+                                  onClick={() => { setSelectedItem(u); setActiveModal('viewUser'); }} 
+                                  title="View Details"
+                                  className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in"
+                                >
+                                  <Eye size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => { setSelectedItem(u); setActiveModal('editUser'); }} 
+                                  title="Edit User"
+                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
+                                >
+                                  <Edit2 size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => handleToggleUserStatus(u.id)} 
+                                  className={`px-2 py-1 text-[10px] font-extrabold border transition-all ${
+                                    displayStatus === "Inactive"
+                                      ? "border-green-300 text-green-700 hover:bg-green-50"
+                                      : "border-orange-300 text-orange-700 hover:bg-orange-50"
+                                  }`}
+                                >
+                                  {displayStatus === "Inactive" ? "Activate" : "Deactivate"}
+                                </button>
+                                <button 
+                                  onClick={() => { setSelectedItem(u); setActiveModal('confirmRemoveUser'); }} 
+                                  title="Remove User"
+                                  className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>
