@@ -5,5 +5,21 @@ export const getAdminStudents = async () => {
     timeout: 120000
   });
   const data = response.data;
-  return Array.isArray(data) ? data : data.students || data.data || [];
+  return Array.isArray(data) ? data : data.items || data.data || data.students || [];
+};
+
+export const getAdminFaculty = async () => {
+  const response = await api.get("/admin/faculty", {
+    timeout: 120000
+  });
+  const data = response.data;
+  return Array.isArray(data) ? data : data.items || data.data || data.faculty || [];
+};
+
+export const getAdminMentors = async () => {
+  const response = await api.get("/admin/mentors", {
+    timeout: 120000
+  });
+  const data = response.data;
+  return Array.isArray(data) ? data : data.items || data.data || data.mentors || [];
 };

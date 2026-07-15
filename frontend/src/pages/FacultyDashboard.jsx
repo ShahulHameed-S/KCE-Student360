@@ -47,7 +47,7 @@ import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
 import { adminUploadService } from "../services/adminUploadService";
-import { getAdminStudents } from "../services/adminService";
+import { getAdminStudents, getAdminFaculty, getAdminMentors } from "../services/adminService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -1041,6 +1041,9 @@ export const FacultyDashboard = () => {
   const [adminStudents, setAdminStudents] = useState([]);
   const [adminStudentsLoading, setAdminStudentsLoading] = useState(false);
   const [adminStudentsError, setAdminStudentsError] = useState("");
+  const [adminTotalStudents, setAdminTotalStudents] = useState(0);
+  const [adminTotalFaculty, setAdminTotalFaculty] = useState(0);
+  const [adminTotalMentors, setAdminTotalMentors] = useState(0);
 
   // Student specific data states
   const [studentProfile, setStudentProfile] = useState(null);
@@ -1488,14 +1491,36 @@ export const FacultyDashboard = () => {
           let studentListResp = [];
 
           if (user?.role === "admin") {
-            const results = await Promise.allSettled([
+            const [studentsResult, facultyResult, mentorsResult, scoresResult] = await Promise.allSettled([
+              getAdminStudents(),
+              getAdminFaculty(),
+              getAdminMentors(),
               uploadService.getScoresCount()
             ]);
 
-            const scoresCountResp = results[0].status === "fulfilled" ? results[0].value : 0;
+            const totalStudentsVal = studentsResult.status === "fulfilled" && Array.isArray(studentsResult.value) ? studentsResult.value.length : 0;
+            const totalFacultyVal = facultyResult.status === "fulfilled" && Array.isArray(facultyResult.value) ? facultyResult.value.length : 0;
+            const totalMentorsVal = mentorsResult.status === "fulfilled" && Array.isArray(mentorsResult.value) ? mentorsResult.value.length : 0;
+            const scoresCountResp = scoresResult.status === "fulfilled" ? scoresResult.value : 0;
 
-            setStudents([]);
+            if (studentsResult.status === "rejected") {
+              console.warn("Failed to load admin count for students:", studentsResult.reason);
+            }
+            if (facultyResult.status === "rejected") {
+              console.warn("Failed to load admin count for faculty:", facultyResult.reason);
+            }
+            if (mentorsResult.status === "rejected") {
+              console.warn("Failed to load admin count for mentors:", mentorsResult.reason);
+            }
+            if (scoresResult.status === "rejected") {
+              console.warn("Failed to load admin count for scores count:", scoresResult.reason);
+            }
+
+            setAdminTotalStudents(totalStudentsVal);
+            setAdminTotalFaculty(totalFacultyVal);
+            setAdminTotalMentors(totalMentorsVal);
             setUploadedScoresCount(scoresCountResp);
+            setStudents([]);
           } else {
             // Execute parallel requests safely for other roles
             const results = await Promise.allSettled([
@@ -1566,8 +1591,16 @@ export const FacultyDashboard = () => {
 
   // Global calculations safely safeguarded
   const totalStudents = user?.role === "admin"
-    ? (Array.isArray(adminStudents) && adminStudents.length > 0 ? adminStudents.length : 0)
+    ? (adminTotalStudents > 0 ? adminTotalStudents : (Array.isArray(adminStudents) && adminStudents.length > 0 ? adminStudents.length : 0))
     : (Array.isArray(students) ? students.length : 0);
+
+  const totalFacultyCount = user?.role === "admin"
+    ? (adminTotalFaculty > 0 ? adminTotalFaculty : (Array.isArray(faculties) ? faculties.length : 0))
+    : (Array.isArray(faculties) ? faculties.length : 0);
+
+  const totalMentorsCount = user?.role === "admin"
+    ? (adminTotalMentors > 0 ? adminTotalMentors : (Array.isArray(mentors) ? mentors.length : 0))
+    : (Array.isArray(mentors) ? mentors.length : 0);
   
   const overallAverage = totalStudents > 0
     ? students.reduce((acc, curr) => {
@@ -3606,8 +3639,8 @@ export const FacultyDashboard = () => {
             {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <StatCard title="Total Students" value={totalStudents} icon={Users} description="Registered student accounts" />
-              <StatCard title="Total Faculty" value={faculties.length} icon={GraduationCap} description="Registered faculty roles" />
-              <StatCard title="Total Mentors" value={mentors.length} icon={CheckSquare} description="Assigned mentors" />
+              <StatCard title="Total Faculty" value={totalFacultyCount} icon={GraduationCap} description="Registered faculty roles" />
+              <StatCard title="Total Mentors" value={totalMentorsCount} icon={CheckSquare} description="Assigned mentors" />
               <StatCard 
                 title="Total Uploaded Scores" 
                 value={uploadedScoresCount} 
