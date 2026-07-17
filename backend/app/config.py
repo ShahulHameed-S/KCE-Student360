@@ -20,9 +20,18 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = Field(default="https://kce-student360.vercel.app", description="Frontend URL for CORS")
     UPLOAD_DIR: str = Field(default="uploads", description="Local upload fallback directory")
     
-    LLM_PROVIDER: str = Field(default="mock", description="LLM service type (mock or ollama)")
-    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL")
+    LLM_PROVIDER: str = Field(default="mock", description="LLM service type (mock, gemini, groq, openrouter)")
+    OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL (dev fallback only)")
     OLLAMA_MODEL: str = Field(default="qwen2.5:1.5b", description="Ollama model string")
+    
+    GEMINI_API_KEY: Optional[str] = Field(default=None, description="Gemini API Key")
+    GEMINI_MODEL: str = Field(default="gemini-1.5-flash", description="Gemini Model")
+    
+    GROQ_API_KEY: Optional[str] = Field(default=None, description="Groq API Key")
+    GROQ_MODEL: str = Field(default="llama-3.3-70b-versatile", description="Groq Model")
+    
+    OPENROUTER_API_KEY: Optional[str] = Field(default=None, description="OpenRouter API Key")
+    OPENROUTER_MODEL: str = Field(default="google/gemini-2.5-flash", description="OpenRouter Model")
     
     class Config:
         env_file = ".env"

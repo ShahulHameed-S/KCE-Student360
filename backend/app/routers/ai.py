@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.models.student import Student
-from app.schemas.ai import AISummaryRequest, AISummaryResponse, FacultyQueryRequest, FacultyQueryResponse
-from app.services.ai_service import generate_student_ai_summary, execute_faculty_query
+from app.schemas.ai import AISummaryRequest, AISummaryResponse, FacultyQueryRequest, FacultyQueryResponse, AIAssistantRequest, AIAssistantResponse
+from app.services.ai_service import generate_student_ai_summary, execute_faculty_query, execute_assistant_query
 
 router = APIRouter()
 
@@ -51,4 +51,25 @@ async def faculty_query(
         )
 
     result = execute_faculty_query(db, payload.query)
+    return result
+
+@router.post("/assistant", response_model=AIAssistantResponse)
+async def ai_assistant(
+    payload: AIAssistantRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Unified AI Assistant endpoint that accepts natural language queries,
+    performs database-first querying, and returns conversational analysis.
+    Accepts both 'query' and 'message' fields in request payload.
+    """
+    user_query = payload.query or payload.message
+    if not user_query or not user_query.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query or message string is required"
+        )
+        
+    result = await execute_assistant_query(db, user_query)
     return result

@@ -94,7 +94,7 @@ export const processFacultyQueryMock = (query) => {
 
 export const askFacultyAssistant = async (query) => {
   try {
-    const response = await api.post("/ai/faculty-query", { query });
+    const response = await api.post("/ai/assistant", { query });
     const data = response.data;
 
     // Map backend response fields to the properties expected by FacultyChatbot

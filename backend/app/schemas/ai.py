@@ -22,3 +22,14 @@ class FacultyQueryResponse(BaseModel):
     limit: int
     students: List[Dict[str, Any]] = Field(default_factory=list)
     answer: str
+
+class AIAssistantRequest(BaseModel):
+    query: Optional[str] = None
+    message: Optional[str] = None
+
+class AIAssistantResponse(BaseModel):
+    intent: str
+    domain: str
+    limit: int
+    students: List[Dict[str, Any]] = Field(default_factory=list)
+    answer: str

@@ -1,5 +1,10 @@
 import json
 import httpx
+import logging
+import re
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.config import settings
@@ -145,6 +150,146 @@ def generate_rule_based_performance_summary(
         "placementAdvice": placement_advice
     }
 
+def get_llm_provider() -> str:
+    provider = settings.LLM_PROVIDER.lower() if settings.LLM_PROVIDER else "mock"
+    
+    if provider == "gemini":
+        if settings.GEMINI_API_KEY:
+            return "gemini"
+        return "mock"
+    elif provider == "groq":
+        if settings.GROQ_API_KEY:
+            return "groq"
+        return "mock"
+    elif provider == "openrouter":
+        if settings.OPENROUTER_API_KEY:
+            return "openrouter"
+        return "mock"
+    elif provider == "mock":
+        return "mock"
+        
+    # Auto-detect fallback: Use Gemini first, then Groq, then OpenRouter
+    if settings.GEMINI_API_KEY:
+        return "gemini"
+    elif settings.GROQ_API_KEY:
+        return "groq"
+    elif settings.OPENROUTER_API_KEY:
+        return "openrouter"
+        
+    return "mock"
+
+def parse_json_from_llm(text: str) -> dict:
+    text = text.strip()
+    if text.startswith("```"):
+        first_newline = text.find("\n")
+        if first_newline != -1:
+            block_header = text[:first_newline].strip().lower()
+            if "json" in block_header or block_header == "```":
+                text = text[first_newline:].strip()
+        if text.endswith("```"):
+            text = text[:-3].strip()
+            
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start_idx = text.find("{")
+        end_idx = text.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            try:
+                return json.loads(text[start_idx:end_idx+1])
+            except json.JSONDecodeError:
+                pass
+        raise
+
+async def call_llm_provider(prompt: str, system_instruction: str = None) -> str:
+    provider = get_llm_provider()
+    
+    if provider == "gemini":
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+        headers = {"Content-Type": "application/json"}
+        
+        contents = [{
+            "parts": [{"text": prompt}]
+        }]
+        payload = {
+            "contents": contents
+        }
+        if system_instruction:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_instruction}]
+            }
+            
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "").strip()
+            resp.raise_for_status()
+            raise Exception(f"Gemini API returned empty response: {resp.text}")
+            
+    elif provider == "groq":
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+        
+        payload = {
+            "model": settings.GROQ_MODEL,
+            "messages": messages,
+            "temperature": 0.2
+        }
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices:
+                    return choices[0].get("message", {}).get("content", "").strip()
+            resp.raise_for_status()
+            raise Exception(f"Groq API returned empty response: {resp.text}")
+            
+    elif provider == "openrouter":
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": settings.FRONTEND_URL,
+            "X-Title": "KCE Student360"
+        }
+        
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        messages.append({"role": "user", "content": prompt})
+        
+        payload = {
+            "model": settings.OPENROUTER_MODEL,
+            "messages": messages
+        }
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+            if resp.status_code == 200:
+                data = resp.json()
+                choices = data.get("choices", [])
+                if choices:
+                    return choices[0].get("message", {}).get("content", "").strip()
+            resp.raise_for_status()
+            raise Exception(f"OpenRouter API returned empty response: {resp.text}")
+            
+    raise Exception(f"Provider {provider} is not supported or not active.")
+
 async def generate_student_ai_summary(db: Session, student_id: int) -> dict:
     """
     Attempts to generate student summary using Ollama LLM provider.
@@ -166,8 +311,9 @@ async def generate_student_ai_summary(db: Session, student_id: int) -> dict:
         student, analytics, scores, projects, certs, achieves
     )
 
-    # Check if Ollama provider is configured
-    if settings.LLM_PROVIDER == "ollama" and analytics:
+    # Check if a cloud LLM provider is active
+    active_provider = get_llm_provider()
+    if active_provider != "mock" and analytics:
         prompt = (
             f"Generate a professional, encouraging student performance summary and placement advice in English "
             f"based on the following student performance metrics:\n"
@@ -190,28 +336,20 @@ async def generate_student_ai_summary(db: Session, student_id: int) -> dict:
         )
 
         try:
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                resp = await client.post(
-                    f"{settings.OLLAMA_BASE_URL}/api/generate",
-                    json={
-                        "model": settings.OLLAMA_MODEL,
-                        "prompt": prompt,
-                        "stream": False,
-                        "format": "json"
-                    }
-                )
-                if resp.status_code == 200:
-                    result = resp.json()
-                    response_text = result.get("response", "").strip()
-                    parsed = json.loads(response_text)
-                    
-                    if "summary" in parsed:
-                        rule_data["summary"] = parsed["summary"]
-                    if "placement_advice" in parsed:
-                        rule_data["placement_advice"] = parsed["placement_advice"]
-                        rule_data["placementAdvice"] = parsed["placement_advice"]
-        except Exception:
-            # Fallback to rule-based silently on connection errors
+            response_text = await call_llm_provider(
+                prompt=prompt,
+                system_instruction="You are a helpful education analyst. Answer only with raw JSON matching the requested schema."
+            )
+            if response_text:
+                parsed = parse_json_from_llm(response_text)
+                if "summary" in parsed:
+                    rule_data["summary"] = parsed["summary"]
+                if "placement_advice" in parsed:
+                    rule_data["placement_advice"] = parsed["placement_advice"]
+                    rule_data["placementAdvice"] = parsed["placement_advice"]
+        except Exception as e:
+            # Fallback to rule-based silently on error
+            logger.error(f"Error generating AI summary using {active_provider}: {str(e)}")
             pass
 
     # Save to AISummary table
@@ -256,7 +394,7 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
             domain_score = analytics.fullstack_average
         elif target_domain == "Aptitude":
             domain_score = analytics.aptitude_average
-        elif target_domain == "Coding":
+        elif target_domain in ["Coding", "Java", "Python"]:
             domain_score = analytics.coding_average
         elif target_domain == "Academic":
             domain_score = analytics.academic_average
@@ -290,6 +428,55 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
             "profileImage": student.profile_image or ""
         }
 
+    # 1.5. Check if query requests summary or performance of a specific student
+    student_match = None
+    if any(keyword in normalized_query for keyword in ["summary", "performance", "report", "analyse", "analyze"]):
+        # Check database for matching register_no or name in the query string
+        all_students = db.query(Student).all()
+        for s in all_students:
+            if s.register_no.lower() in normalized_query or (s.name and s.name.lower() in normalized_query):
+                student_match = s
+                break
+                
+    if student_match:
+        # Load associated metrics synchronously
+        analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student_match.id).first()
+        scores = db.query(AssessmentScore).filter(AssessmentScore.student_id == student_match.id).all()
+        projects = db.query(StudentProject).filter(StudentProject.student_id == student_match.id, StudentProject.status == "Approved").all()
+        certs = db.query(StudentCertification).filter(StudentCertification.student_id == student_match.id, StudentCertification.status == "Approved").all()
+        achieves = db.query(StudentAchievement).filter(StudentAchievement.student_id == student_match.id, StudentAchievement.status == "Approved").all()
+        
+        rule_data = generate_rule_based_performance_summary(
+            student_match, analytics, scores, projects, certs, achieves
+        )
+        
+        # Format a nice static summary answer
+        summary_text = (
+            f"### Student Performance Summary for {student_match.name} ({student_match.register_no})\n\n"
+            f"**Department:** {student_match.department}\n\n"
+            f"**Summary:** {rule_data['summary']}\n\n"
+            f"**Strengths:** {', '.join(rule_data['strengths']) if rule_data['strengths'] else 'None identified'}\n\n"
+            f"**Weaknesses:** {', '.join(rule_data['weaknesses']) if rule_data['weaknesses'] else 'None identified'}\n\n"
+            f"**Recommendations:**\n" + "\n".join([f"- {r}" for r in rule_data['recommendations']]) + "\n\n"
+            f"**Placement Advice:** {rule_data['placement_advice']}"
+        )
+        
+        mock_analytics = analytics or StudentAnalytics(
+            student_id=student_match.id,
+            overall_score=0.0,
+            placement_readiness_score=0.0,
+            placement_readiness_level="Needs Training"
+        )
+        students_list = [map_student_row(student_match, mock_analytics, 0, "Overall")]
+        
+        return {
+            "intent": "student_summary",
+            "domain": "Overall",
+            "limit": 1,
+            "students": students_list,
+            "answer": summary_text
+        }
+
     # 2. Check query intent mappings
     # Leaderboard Domain topper queries
     domains_check = {
@@ -300,20 +487,26 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
         "aptitude": "Aptitude",
         "coding": "Coding",
         "academic": "Academic",
-        "technical": "Technical"
+        "technical": "Technical",
+        "java": "Java",
+        "python": "Python"
     }
 
-    # Match Domain Top 10
+    # Extract limit from query (e.g. "top 5", "top 10")
+    num_match = re.search(r'\b\d+\b', normalized_query)
+    limit = int(num_match.group(0)) if num_match else 10
+
+    # Match Domain toppers
     matched_domain = None
     for pattern, d_name in domains_check.items():
-        if f"top 10 {pattern}" in normalized_query or f"top 10 {pattern} students" in normalized_query:
-            matched_domain = d_name
-            break
+        if pattern in normalized_query:
+            if any(keyword in normalized_query for keyword in ["top", "topper", "best", "rank", "leaderboard", "student"]):
+                matched_domain = d_name
+                break
 
     if matched_domain:
         intent = "leaderboard"
         domain = matched_domain
-        limit = 10
         
         # Query sorting by selected domain score
         query = db.query(Student, StudentAnalytics).join(
@@ -327,7 +520,7 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
             query = query.order_by(StudentAnalytics.fullstack_average.desc())
         elif matched_domain == "Aptitude":
             query = query.order_by(StudentAnalytics.aptitude_average.desc())
-        elif matched_domain == "Coding":
+        elif matched_domain in ["Coding", "Java", "Python"]:
             query = query.order_by(StudentAnalytics.coding_average.desc())
         elif matched_domain == "Academic":
             query = query.order_by(StudentAnalytics.academic_average.desc())
@@ -336,13 +529,12 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
 
         results = query.limit(limit).all()
         students_list = [map_student_row(s, a, i, matched_domain) for i, (s, a) in enumerate(results)]
-        answer = f"Here are the top 10 {matched_domain} students based on verified test averages."
+        answer = f"Here are the top {limit} {matched_domain} students based on verified test averages."
 
     # Match Overall toppers
-    elif "overall toppers" in normalized_query or "top 10 overall" in normalized_query:
+    elif "overall toppers" in normalized_query or "top 10 overall" in normalized_query or ("overall" in normalized_query and ("top" in normalized_query or "topper" in normalized_query)):
         intent = "leaderboard"
         domain = "Overall"
-        limit = 10
 
         query = db.query(Student, StudentAnalytics).join(
             StudentAnalytics, Student.id == StudentAnalytics.student_id
@@ -350,13 +542,12 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
         
         results = query.all()
         students_list = [map_student_row(s, a, i, "Overall") for i, (s, a) in enumerate(results)]
-        answer = "Here are the top overall student performers based on cumulative average scores."
+        answer = f"Here are the top overall student performers based on cumulative average scores."
 
     # Match Placement Ready
     elif "placement" in normalized_query or "ready" in normalized_query:
         intent = "placement_readiness"
         domain = "Overall"
-        limit = 10
 
         # Retrieve students with Placement Ready status
         query = db.query(Student, StudentAnalytics).join(
@@ -379,7 +570,6 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
     elif "below average" in normalized_query or "below class average" in normalized_query:
         intent = "below_average"
         domain = "Overall"
-        limit = 10
 
         # Calculate overall class average
         avg_score = db.query(func.avg(StudentAnalytics.overall_score)).scalar()
@@ -396,11 +586,10 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
         students_list = [map_student_row(s, a, i, "Overall") for i, (s, a) in enumerate(results)]
         answer = f"Here are students performing below the overall class average of {round(avg_score, 2)}%."
 
-    # Match Needing Attention
-    elif "needing attention" in normalized_query or "attention" in normalized_query:
+    # Match Needing Attention / Weak Students
+    elif "needing attention" in normalized_query or "attention" in normalized_query or "weak" in normalized_query:
         intent = "needing_attention"
         domain = "Overall"
-        limit = 10
 
         # Filter criteria: overall < 70 OR placement_level == Needs Training OR any domain < 70
         query = db.query(Student, StudentAnalytics).join(
@@ -419,7 +608,7 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
 
         results = query.all()
         students_list = [map_student_row(s, a, i, "Overall") for i, (s, a) in enumerate(results)]
-        answer = "Here are the students flagged as needing attention due to critical domain scores or training levels."
+        answer = f"Here are the top {limit} students flagged as weak or needing attention based on test scores and placement metrics."
 
     return {
         "intent": intent,
@@ -428,3 +617,66 @@ def execute_faculty_query(db: Session, query_str: str) -> dict:
         "students": students_list,
         "answer": answer
     }
+
+async def execute_assistant_query(db: Session, query_str: str) -> dict:
+    """
+    Executes database search first, then uses the active LLM provider (Gemini, Groq, OpenRouter)
+    to summarize/explain the database records. If LLM provider is 'mock' or fails, it falls back
+    to the rule-based static response.
+    """
+    # 1. Run database query first using execute_faculty_query
+    result = execute_faculty_query(db, query_str)
+    
+    # 2. Check active LLM provider
+    active_provider = get_llm_provider()
+    if active_provider == "mock":
+        return result
+        
+    try:
+        if result["intent"] == "general":
+            # General query - use LLM to answer conversationally
+            system_instruction = (
+                "You are KCE Student360 AI Assistant, a helpful AI assistant for faculty and mentors "
+                "at Karpagam College of Engineering (KCE). Answer the faculty member's question directly, "
+                "professionally, and in a friendly tone. Use markdown styling for formatting."
+            )
+            prompt = f"Faculty member query: {query_str}"
+            response = await call_llm_provider(prompt=prompt, system_instruction=system_instruction)
+            if response:
+                result["answer"] = response
+        else:
+            # Database-first query - format the retrieved database records as context and ask LLM to explain them
+            students_info = ""
+            for idx, s in enumerate(result["students"]):
+                students_info += (
+                    f"- Rank {s.get('rank') or idx+1}: Name: {s.get('name')}, Register No: {s.get('register_no')}, "
+                    f"Score: {s.get('score')}%, Overall Score: {s.get('overall_score')}%, "
+                    f"Strongest Domain: {s.get('strongest_domain') or 'N/A'}, Weakest Domain: {s.get('weakest_domain') or 'N/A'}, "
+                    f"Placement Readiness Level: {s.get('placement_readiness_level') or 'N/A'}\n"
+                )
+            
+            system_instruction = (
+                "You are KCE Student360 AI Assistant, an education analyst for Karpagam College of Engineering (KCE). "
+                "Analyze the provided student database records to explain and summarize them to the faculty member. "
+                "CRITICAL SECURITY RULES:\n"
+                "1. Do NOT invent, assume, or change any student names, register numbers, scores, ranks, or placement readiness levels. Only refer to the database records listed below.\n"
+                "2. If the student list is empty, state clearly that no students matched this search criteria in the database.\n"
+                "3. Keep the response concise, informative, and professional."
+            )
+            
+            prompt = (
+                f"The faculty member asked: \"{query_str}\"\n\n"
+                f"Here are the real student records matching this search query retrieved from the database:\n"
+                f"{students_info or '(No students found in database matching this criteria)'}\n\n"
+                f"Please summarize and explain these database results for the faculty member."
+            )
+            
+            response = await call_llm_provider(prompt=prompt, system_instruction=system_instruction)
+            if response:
+                result["answer"] = response
+    except Exception as e:
+        logger.error(f"Error in execute_assistant_query using provider {active_provider}: {str(e)}")
+        # Keep the default result["answer"] if call fails
+        pass
+        
+    return result
