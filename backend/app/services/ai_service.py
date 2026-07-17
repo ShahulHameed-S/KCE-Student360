@@ -629,7 +629,12 @@ async def execute_assistant_query(db: Session, query_str: str) -> dict:
     
     # 2. Check active LLM provider
     active_provider = get_llm_provider()
+    
+    print("AI Assistant provider:", active_provider)
+    print("Gemini API key exists:", bool(settings.GEMINI_API_KEY))
+    
     if active_provider == "mock":
+        result["provider"] = "mock"
         return result
         
     try:
@@ -674,9 +679,16 @@ async def execute_assistant_query(db: Session, query_str: str) -> dict:
             response = await call_llm_provider(prompt=prompt, system_instruction=system_instruction)
             if response:
                 result["answer"] = response
+                
+        result["provider"] = active_provider
     except Exception as e:
+        if active_provider == "gemini":
+            print("Gemini call failed:", str(e))
+        else:
+            print(f"{active_provider.capitalize()} call failed: {str(e)}")
+            
         logger.error(f"Error in execute_assistant_query using provider {active_provider}: {str(e)}")
-        # Keep the default result["answer"] if call fails
-        pass
+        # Keep the default result["answer"] if call fails, fallback provider to mock
+        result["provider"] = "mock"
         
     return result

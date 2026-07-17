@@ -33,3 +33,4 @@ class AIAssistantResponse(BaseModel):
     limit: int
     students: List[Dict[str, Any]] = Field(default_factory=list)
     answer: str
+    provider: str
