@@ -2,7 +2,10 @@ import json
 import httpx
 import logging
 import re
+import time
 from typing import Optional
+
+rate_limit_cooldowns = {}
 
 logger = logging.getLogger(__name__)
 from sqlalchemy.orm import Session
@@ -178,6 +181,42 @@ def get_llm_provider() -> str:
         
     return "mock"
 
+class RateLimitException(Exception):
+    def __init__(self, provider: str, message: str = "Rate limit exceeded"):
+        self.provider = provider
+        self.message = message
+        super().__init__(self.message)
+
+def get_provider_cascade(start_provider: str) -> list:
+    full_order = ["gemini", "groq", "openrouter", "mock"]
+    if start_provider not in full_order:
+        start_provider = "mock"
+        
+    start_idx = full_order.index(start_provider)
+    cascade = full_order[start_idx:]
+    
+    current_time = time.time()
+    
+    # Filter by API key availability and cooldown status
+    available_cascade = []
+    for p in cascade:
+        if p in rate_limit_cooldowns and current_time < rate_limit_cooldowns[p]:
+            continue
+            
+        if p == "gemini" and settings.GEMINI_API_KEY:
+            available_cascade.append(p)
+        elif p == "groq" and settings.GROQ_API_KEY:
+            available_cascade.append(p)
+        elif p == "openrouter" and settings.OPENROUTER_API_KEY:
+            available_cascade.append(p)
+        elif p == "mock":
+            available_cascade.append(p)
+            
+    if "mock" not in available_cascade:
+        available_cascade.append("mock")
+        
+    return available_cascade
+
 def parse_json_from_llm(text: str) -> dict:
     text = text.strip()
     if text.startswith("```"):
@@ -201,9 +240,7 @@ def parse_json_from_llm(text: str) -> dict:
                 pass
         raise
 
-async def call_llm_provider(prompt: str, system_instruction: str = None) -> str:
-    provider = get_llm_provider()
-    
+async def call_llm_provider(provider: str, prompt: str, system_instruction: str = None) -> str:
     if provider == "gemini":
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
         headers = {"Content-Type": "application/json"}
@@ -219,17 +256,34 @@ async def call_llm_provider(prompt: str, system_instruction: str = None) -> str:
                 "parts": [{"text": system_instruction}]
             }
             
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts:
-                        return parts[0].get("text", "").strip()
-            resp.raise_for_status()
-            raise Exception(f"Gemini API returned empty response: {resp.text}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts:
+                            return parts[0].get("text", "").strip()
+                
+                if resp.status_code == 429:
+                    raise RateLimitException("gemini", "429 Too Many Requests")
+                    
+                resp.raise_for_status()
+                raise Exception(f"Gemini API returned empty response: {resp.text}")
+        except RateLimitException:
+            raise
+        except httpx.HTTPStatusError as hse:
+            status_code = hse.response.status_code
+            safe_reason = f"HTTP Error {status_code}"
+            print(f"LLM call failed: provider=gemini, status={status_code}, model={settings.GEMINI_MODEL}, reason={safe_reason}")
+            raise Exception(f"Gemini HTTP {status_code}")
+        except Exception as e:
+            reason_str = str(e)
+            reason_str = re.sub(r'key=[a-zA-Z0-9_\-]+', 'key=REDACTED', reason_str)
+            print(f"LLM call failed: provider=gemini, status=N/A, model={settings.GEMINI_MODEL}, reason={reason_str}")
+            raise Exception(reason_str)
             
     elif provider == "groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -249,15 +303,32 @@ async def call_llm_provider(prompt: str, system_instruction: str = None) -> str:
             "temperature": 0.2
         }
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                choices = data.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
-            resp.raise_for_status()
-            raise Exception(f"Groq API returned empty response: {resp.text}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "").strip()
+                
+                if resp.status_code == 429:
+                    raise RateLimitException("groq", "429 Too Many Requests")
+                    
+                resp.raise_for_status()
+                raise Exception(f"Groq API returned empty response: {resp.text}")
+        except RateLimitException:
+            raise
+        except httpx.HTTPStatusError as hse:
+            status_code = hse.response.status_code
+            safe_reason = f"HTTP Error {status_code}"
+            print(f"LLM call failed: provider=groq, status={status_code}, model={settings.GROQ_MODEL}, reason={safe_reason}")
+            raise Exception(f"Groq HTTP {status_code}")
+        except Exception as e:
+            reason_str = str(e)
+            reason_str = re.sub(r'key=[a-zA-Z0-9_\-]+', 'key=REDACTED', reason_str)
+            print(f"LLM call failed: provider=groq, status=N/A, model={settings.GROQ_MODEL}, reason={reason_str}")
+            raise Exception(reason_str)
             
     elif provider == "openrouter":
         url = "https://openrouter.ai/api/v1/chat/completions"
@@ -278,15 +349,32 @@ async def call_llm_provider(prompt: str, system_instruction: str = None) -> str:
             "messages": messages
         }
         
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                choices = data.get("choices", [])
-                if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
-            resp.raise_for_status()
-            raise Exception(f"OpenRouter API returned empty response: {resp.text}")
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    choices = data.get("choices", [])
+                    if choices:
+                        return choices[0].get("message", {}).get("content", "").strip()
+                
+                if resp.status_code == 429:
+                    raise RateLimitException("openrouter", "429 Too Many Requests")
+                    
+                resp.raise_for_status()
+                raise Exception(f"OpenRouter API returned empty response: {resp.text}")
+        except RateLimitException:
+            raise
+        except httpx.HTTPStatusError as hse:
+            status_code = hse.response.status_code
+            safe_reason = f"HTTP Error {status_code}"
+            print(f"LLM call failed: provider=openrouter, status={status_code}, model={settings.OPENROUTER_MODEL}, reason={safe_reason}")
+            raise Exception(f"OpenRouter HTTP {status_code}")
+        except Exception as e:
+            reason_str = str(e)
+            reason_str = re.sub(r'key=[a-zA-Z0-9_\-]+', 'key=REDACTED', reason_str)
+            print(f"LLM call failed: provider=openrouter, status=N/A, model={settings.OPENROUTER_MODEL}, reason={reason_str}")
+            raise Exception(reason_str)
             
     raise Exception(f"Provider {provider} is not supported or not active.")
 
@@ -337,8 +425,9 @@ async def generate_student_ai_summary(db: Session, student_id: int) -> dict:
 
         try:
             response_text = await call_llm_provider(
-                prompt=prompt,
-                system_instruction="You are a helpful education analyst. Answer only with raw JSON matching the requested schema."
+                active_provider,
+                prompt,
+                "You are a helpful education analyst. Answer only with raw JSON matching the requested schema."
             )
             if response_text:
                 parsed = parse_json_from_llm(response_text)
@@ -627,68 +716,104 @@ async def execute_assistant_query(db: Session, query_str: str) -> dict:
     # 1. Run database query first using execute_faculty_query
     result = execute_faculty_query(db, query_str)
     
-    # 2. Check active LLM provider
-    active_provider = get_llm_provider()
+    # 2. Check preferred LLM provider
+    preferred_provider = get_llm_provider()
     
-    print("AI Assistant provider:", active_provider)
-    print("Gemini API key exists:", bool(settings.GEMINI_API_KEY))
+    # Get available provider cascade starting from the preferred provider
+    cascade = get_provider_cascade(preferred_provider)
     
-    if active_provider == "mock":
-        result["provider"] = "mock"
-        return result
+    for provider in cascade:
+        print("AI Assistant provider:", provider)
+        print("Gemini API key exists:", bool(settings.GEMINI_API_KEY))
         
-    try:
-        if result["intent"] == "general":
-            # General query - use LLM to answer conversationally
-            system_instruction = (
-                "You are KCE Student360 AI Assistant, a helpful AI assistant for faculty and mentors "
-                "at Karpagam College of Engineering (KCE). Answer the faculty member's question directly, "
-                "professionally, and in a friendly tone. Use markdown styling for formatting."
-            )
-            prompt = f"Faculty member query: {query_str}"
-            response = await call_llm_provider(prompt=prompt, system_instruction=system_instruction)
-            if response:
-                result["answer"] = response
-        else:
-            # Database-first query - format the retrieved database records as context and ask LLM to explain them
-            students_info = ""
-            for idx, s in enumerate(result["students"]):
-                students_info += (
-                    f"- Rank {s.get('rank') or idx+1}: Name: {s.get('name')}, Register No: {s.get('register_no')}, "
-                    f"Score: {s.get('score')}%, Overall Score: {s.get('overall_score')}%, "
-                    f"Strongest Domain: {s.get('strongest_domain') or 'N/A'}, Weakest Domain: {s.get('weakest_domain') or 'N/A'}, "
-                    f"Placement Readiness Level: {s.get('placement_readiness_level') or 'N/A'}\n"
+        if provider == "mock":
+            result["provider"] = "mock"
+            if preferred_provider != "mock":
+                result["attemptedProvider"] = preferred_provider
+                result["fallbackReason"] = f"{preferred_provider}_rate_limit"
+            return result
+            
+        try:
+            if result["intent"] == "general":
+                # General query - use LLM to answer conversationally
+                system_instruction = (
+                    "You are KCE Student360 AI Assistant, a helpful AI assistant for faculty and mentors "
+                    "at Karpagam College of Engineering (KCE). Answer the faculty member's question directly, "
+                    "professionally, and in a friendly tone. Use markdown styling for formatting."
                 )
-            
-            system_instruction = (
-                "You are KCE Student360 AI Assistant, an education analyst for Karpagam College of Engineering (KCE). "
-                "Analyze the provided student database records to explain and summarize them to the faculty member. "
-                "CRITICAL SECURITY RULES:\n"
-                "1. Do NOT invent, assume, or change any student names, register numbers, scores, ranks, or placement readiness levels. Only refer to the database records listed below.\n"
-                "2. If the student list is empty, state clearly that no students matched this search criteria in the database.\n"
-                "3. Keep the response concise, informative, and professional."
-            )
-            
-            prompt = (
-                f"The faculty member asked: \"{query_str}\"\n\n"
-                f"Here are the real student records matching this search query retrieved from the database:\n"
-                f"{students_info or '(No students found in database matching this criteria)'}\n\n"
-                f"Please summarize and explain these database results for the faculty member."
-            )
-            
-            response = await call_llm_provider(prompt=prompt, system_instruction=system_instruction)
-            if response:
-                result["answer"] = response
+                prompt = f"Faculty member query: {query_str}"
+                response = await call_llm_provider(provider, prompt, system_instruction)
+                if response:
+                    result["answer"] = response
+            else:
+                # Database-first query - format the retrieved database records as context and ask LLM to explain them
+                students_info = ""
+                for idx, s in enumerate(result["students"]):
+                    students_info += (
+                        f"- Rank {s.get('rank') or idx+1}: Name: {s.get('name')}, Register No: {s.get('register_no')}, "
+                        f"Score: {s.get('score')}%, Overall Score: {s.get('overall_score')}%, "
+                        f"Strongest Domain: {s.get('strongest_domain') or 'N/A'}, Weakest Domain: {s.get('weakest_domain') or 'N/A'}, "
+                        f"Placement Readiness Level: {s.get('placement_readiness_level') or 'N/A'}\n"
+                    )
                 
-        result["provider"] = active_provider
-    except Exception as e:
-        if active_provider == "gemini":
-            print("Gemini call failed:", str(e))
-        else:
-            print(f"{active_provider.capitalize()} call failed: {str(e)}")
+                system_instruction = (
+                    "You are KCE Student360 AI Assistant, an education analyst for Karpagam College of Engineering (KCE). "
+                    "Analyze the provided student database records to explain and summarize them to the faculty member. "
+                    "CRITICAL SECURITY RULES:\n"
+                    "1. Do NOT invent, assume, or change any student names, register numbers, scores, ranks, or placement readiness levels. Only refer to the database records listed below.\n"
+                    "2. If the student list is empty, state clearly that no students matched this search criteria in the database.\n"
+                    "3. Keep the response concise, informative, and professional."
+                )
+                
+                prompt = (
+                    f"The faculty member asked: \"{query_str}\"\n\n"
+                    f"Here are the real student records matching this search query retrieved from the database:\n"
+                    f"{students_info or '(No students found in database matching this criteria)'}\n\n"
+                    f"Please summarize and explain these database results for the faculty member."
+                )
+                
+                response = await call_llm_provider(provider, prompt, system_instruction)
+                if response:
+                    result["answer"] = response
+                    
+            result["provider"] = provider
+            if provider != preferred_provider:
+                result["attemptedProvider"] = preferred_provider
+                result["fallbackReason"] = f"{preferred_provider}_rate_limit"
+            return result
             
-        logger.error(f"Error in execute_assistant_query using provider {active_provider}: {str(e)}")
-        # Keep the default result["answer"] if call fails, fallback provider to mock
-        result["provider"] = "mock"
+        except RateLimitException as rle:
+            # Add provider to cooldown for 60 seconds
+            rate_limit_cooldowns[provider] = time.time() + 60
+            
+            # Print the required safe error messages
+            if provider == "gemini":
+                print("Gemini call failed:", str(rle))
+            else:
+                print(f"{provider.capitalize()} call failed:", str(rle))
+                
+            # Cascade to next provider
+            continue
+        except Exception as e:
+            # For general exceptions, also trigger cooldown
+            rate_limit_cooldowns[provider] = time.time() + 60
+            
+            # Print sanitized exception error
+            err_msg = str(e)
+            err_msg = re.sub(r'key=[a-zA-Z0-9_\-]+', 'key=REDACTED', err_msg)
+            
+            if provider == "gemini":
+                print("Gemini call failed:", err_msg)
+            else:
+                print(f"{provider.capitalize()} call failed:", err_msg)
+                
+            # Cascade to next provider
+            continue
+            
+    # Default fallback if all cascaded providers fail
+    result["provider"] = "mock"
+    if preferred_provider != "mock":
+        result["attemptedProvider"] = preferred_provider
+        result["fallbackReason"] = f"{preferred_provider}_rate_limit"
         
     return result
