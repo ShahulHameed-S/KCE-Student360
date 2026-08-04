@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { studentService } from "../services/studentService";
+import { mentorService } from "../services/mentorService";
+import { useAuth } from "../hooks/useAuth";
 import DataTable from "../components/common/DataTable";
 import ScoreBadge from "../components/common/ScoreBadge";
 import DomainBadge from "../components/common/DomainBadge";
@@ -8,6 +10,7 @@ import LoadingSpinner from "../components/common/LoadingSpinner";
 import { ExternalLink, UserSquare2 } from "lucide-react";
 
 export const StudentListPage = () => {
+  const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,17 +19,39 @@ export const StudentListPage = () => {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-        const data = await studentService.getAllStudents();
-        setStudents(data);
+        setError("");
+        
+        let response;
+        if (user?.role === "mentor") {
+          response = await mentorService.getAssignedStudents();
+        } else {
+          response = await studentService.getAllStudents();
+        }
+
+        // Safe normalization
+        const studentsData = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.items)
+            ? response.items
+            : Array.isArray(response?.students)
+              ? response.students
+              : [];
+
+        setStudents(studentsData);
       } catch (err) {
-        setError("Failed to load students directory");
+        console.error("Student list directory load failed:", {
+          url: user?.role === "mentor" ? "/mentor/students" : "/students",
+          status: err.response?.status,
+          message: err.response?.data?.detail || err.message
+        });
+        setError(err.response?.data?.detail || err.message || "Failed to load students directory");
       } finally {
         setLoading(false);
       }
     };
 
     fetchStudents();
-  }, []);
+  }, [user]);
 
   const columns = [
     {
@@ -125,8 +150,8 @@ export const StudentListPage = () => {
           label: "Strongest Competency",
           options: ["DSA", "DBMS", "FullStack", "Aptitude", "Coding", "Academic", "Technical"]
         }}
-        emptyTitle="No Students Found"
-        emptyDescription="We couldn't find any students matching those search filters."
+        emptyTitle={user?.role === "mentor" ? "No students assigned yet" : "No Students Found"}
+        emptyDescription={user?.role === "mentor" ? "You do not have any students assigned to your classes yet." : "We couldn't find any students matching those search filters."}
       />
     </div>
   );

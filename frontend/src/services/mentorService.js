@@ -58,7 +58,7 @@ export const mentorService = {
   // Retrieve list of assigned students for current mentor
   getAssignedStudents: async () => {
     try {
-      const response = await api.get("/mentor/students");
+      const response = await api.get("/mentor/students", { timeout: 120000 });
       return response.data;
     } catch (error) {
       console.warn("Assigned Students API failed:", error.message);
