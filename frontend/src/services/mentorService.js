@@ -12,6 +12,9 @@ export const mentorService = {
       return response.data;
     } catch (error) {
       console.warn("Approvals API failed, returning mock approvals:", error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
       return [...localApprovals];
     }
   },
@@ -23,6 +26,9 @@ export const mentorService = {
       return response.data;
     } catch (error) {
       console.warn("Pending Approvals API failed, returning mock pending approvals:", error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
       return localApprovals.filter(item => item.status === "Pending");
     }
   },
@@ -34,6 +40,9 @@ export const mentorService = {
       return response.data;
     } catch (error) {
       console.warn(`Review API failed for item ID ${id}. Updating in-memory mock approvals:`, error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
       const index = localApprovals.findIndex(item => item.id === id && item.item_type === type);
       if (index !== -1) {
         localApprovals[index] = {
@@ -43,6 +52,20 @@ export const mentorService = {
         };
       }
       return { success: true, message: `Status updated to ${status}` };
+    }
+  },
+
+  // Retrieve list of assigned students for current mentor
+  getAssignedStudents: async () => {
+    try {
+      const response = await api.get("/mentor/students");
+      return response.data;
+    } catch (error) {
+      console.warn("Assigned Students API failed:", error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
+      return [];
     }
   },
 

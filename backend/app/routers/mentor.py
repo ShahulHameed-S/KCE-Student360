@@ -205,3 +205,55 @@ async def review_submission(
     db.refresh(item)
 
     return build_unified_approval_item(item, item_type_norm)
+
+
+@router.get("/students")
+async def get_mentor_students(
+    current_user: User = Depends(RoleRequired(["mentor", "admin", "faculty"])),
+    db: Session = Depends(get_db)
+):
+    """Retrieves list of assigned students for a mentor (or all for admin/faculty)."""
+    from app.models.score import StudentAnalytics
+    from app.models.student import FacultyProfile
+    
+    if current_user.role in ["admin", "faculty"]:
+        students = db.query(Student).all()
+    else:
+        assigned_student_ids = get_assigned_student_ids(db, current_user.id)
+        if assigned_student_ids:
+            students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+        else:
+            fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+            if fp:
+                students = db.query(Student).filter(Student.department == fp.department).all()
+            else:
+                students = []
+
+    res_list = []
+    for s in students:
+        analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
+        res_list.append({
+            "id": s.id,
+            "user_id": s.user_id,
+            "userId": s.user_id,
+            "register_no": s.register_no,
+            "registerNo": s.register_no,
+            "name": s.name,
+            "email": s.email,
+            "phone": s.phone or "",
+            "department": s.department,
+            "year": s.year,
+            "section": s.section,
+            "batch": s.batch,
+            "cgpa": s.cgpa,
+            "profile_image": s.profile_image or "",
+            "profileImage": s.profile_image or "",
+            "created_at": s.created_at.isoformat() if s.created_at else "",
+            "overall_score": analytics_obj.overall_score if analytics_obj else 0.0,
+            "overallScore": analytics_obj.overall_score if analytics_obj else 0.0,
+            "strongest_domain": analytics_obj.strongest_domain if analytics_obj else "Coding",
+            "strongestDomain": analytics_obj.strongest_domain if analytics_obj else "Coding",
+            "weakest_domain": analytics_obj.weakest_domain if analytics_obj else "DBMS",
+            "weakestDomain": analytics_obj.weakest_domain if analytics_obj else "DBMS"
+        })
+    return res_list

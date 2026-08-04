@@ -17,23 +17,39 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
     github_url = ""
     linkedin_url = ""
     
-    if user.role == "student" and user.student_profile:
-        s = user.student_profile
-        department = s.department
-        extra_details = {
-            "registerNo": s.register_no,
-            "register_no": s.register_no,
-            "year": s.year,
-            "section": s.section,
-            "batch": s.batch,
-            "cgpa": s.cgpa,
-            "program": "B.Tech " + s.department if s.department else ""
-        }
-        from app.models.portfolio import PortfolioCustomization
-        cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
-        if cust:
-            github_url = cust.github_url or ""
-            linkedin_url = cust.linkedin_url or ""
+    if user.role == "student":
+        student = user.student_profile
+        if not student:
+            from sqlalchemy import func
+            student = db.query(Student).filter(Student.user_id == user.id).first()
+            if not student:
+                student = db.query(Student).filter(Student.email == user.email).first()
+            if not student:
+                student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(user.username)).first()
+            if student:
+                student.user_id = user.id
+                db.add(student)
+                db.commit()
+                db.refresh(user)
+                student = user.student_profile
+
+        if student:
+            s = student
+            department = s.department
+            extra_details = {
+                "registerNo": s.register_no,
+                "register_no": s.register_no,
+                "year": s.year,
+                "section": s.section,
+                "batch": s.batch,
+                "cgpa": s.cgpa,
+                "program": "B.Tech " + s.department if s.department else ""
+            }
+            from app.models.portfolio import PortfolioCustomization
+            cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
+            if cust:
+                github_url = cust.github_url or ""
+                linkedin_url = cust.linkedin_url or ""
     elif user.role == "faculty" and user.faculty_profile:
         f = user.faculty_profile
         department = f.department
@@ -108,20 +124,35 @@ async def update_my_profile(
         profile.bio = payload.bio
 
     # Sync to Student profile if role is student
-    if current_user.role == "student" and current_user.student_profile:
+    if current_user.role == "student":
         s = current_user.student_profile
-        if payload.full_name is not None:
-            s.name = payload.full_name
-        if payload.email is not None:
-            s.email = payload.email
-        if payload.phone is not None:
-            s.phone = payload.phone
-        if payload.department is not None:
-            s.department = payload.department
-        if payload.year is not None:
-            s.year = payload.year
-        if payload.section is not None:
-            s.section = payload.section
+        if not s:
+            from sqlalchemy import func
+            s = db.query(Student).filter(Student.user_id == current_user.id).first()
+            if not s:
+                s = db.query(Student).filter(Student.email == current_user.email).first()
+            if not s:
+                s = db.query(Student).filter(func.lower(Student.register_no) == func.lower(current_user.username)).first()
+            if s:
+                s.user_id = current_user.id
+                db.add(s)
+                db.commit()
+                db.refresh(current_user)
+                s = current_user.student_profile
+
+        if s:
+            if payload.full_name is not None:
+                s.name = payload.full_name
+            if payload.email is not None:
+                s.email = payload.email
+            if payload.phone is not None:
+                s.phone = payload.phone
+            if payload.department is not None:
+                s.department = payload.department
+            if payload.year is not None:
+                s.year = payload.year
+            if payload.section is not None:
+                s.section = payload.section
 
         # Update PortfolioCustomization fields
         from app.models.portfolio import PortfolioCustomization
@@ -172,8 +203,23 @@ async def upload_my_profile_image(
     profile.profile_image = file_url
 
     # Synchronize to student profile image if role is student
-    if current_user.role == "student" and current_user.student_profile:
-        current_user.student_profile.profile_image = file_url
+    if current_user.role == "student":
+        s = current_user.student_profile
+        if not s:
+            from sqlalchemy import func
+            s = db.query(Student).filter(Student.user_id == current_user.id).first()
+            if not s:
+                s = db.query(Student).filter(Student.email == current_user.email).first()
+            if not s:
+                s = db.query(Student).filter(func.lower(Student.register_no) == func.lower(current_user.username)).first()
+            if s:
+                s.user_id = current_user.id
+                db.add(s)
+                db.commit()
+                db.refresh(current_user)
+                s = current_user.student_profile
+        if s:
+            s.profile_image = file_url
 
     db.commit()
     db.refresh(profile)

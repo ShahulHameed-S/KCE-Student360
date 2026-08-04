@@ -122,13 +122,17 @@ export const LeaderboardPage = () => {
         };
       });
     } else {
-      sorted = [...mockStudents].map(s => ({
-        ...s,
-        profile_image: getStudentImageUrl(s),
-        profileImage: getStudentImageUrl(s),
-        score: getScore(s, selectedDomain)
-      })).sort((a, b) => b.score - a.score);
-      sorted = sorted.map((s, idx) => ({ ...s, rank: idx + 1 }));
+      if (import.meta.env.PROD) {
+        sorted = [];
+      } else {
+        sorted = [...mockStudents].map(s => ({
+          ...s,
+          profile_image: getStudentImageUrl(s),
+          profileImage: getStudentImageUrl(s),
+          score: getScore(s, selectedDomain)
+        })).sort((a, b) => b.score - a.score);
+        sorted = sorted.map((s, idx) => ({ ...s, rank: idx + 1 }));
+      }
     }
 
     const podium = [];

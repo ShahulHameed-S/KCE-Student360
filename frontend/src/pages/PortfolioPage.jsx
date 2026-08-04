@@ -391,14 +391,14 @@ export const PortfolioPage = () => {
     highestScore = Math.max(...studentPerformance.map(p => p.score));
   }
 
-  // Find basic info from mockStudents
-  const student = mockStudents.find(s => s.register_no === registerNo);
+  // Find basic info from fetched portfolio data
+  const student = portfolio?.student;
   const studentId = student?.id || "1";
 
   // 1. Saved profile image from profileService/localStorage
   // Check key: `student360_profile_student_${studentId}`
   const profileServiceKey = `student360_profile_student_${studentId}`;
-  const storedProfileRaw = localStorage.getItem(profileServiceKey);
+  const storedProfileRaw = !import.meta.env.PROD ? localStorage.getItem(profileServiceKey) : null;
   let profileServiceImage = null;
   if (storedProfileRaw) {
     try {
@@ -409,7 +409,7 @@ export const PortfolioPage = () => {
 
   // Also check profileKey: `student360_profile_${registerNo}`
   const profileKey = `student360_profile_${registerNo}`;
-  const storedProfileRaw2 = localStorage.getItem(profileKey);
+  const storedProfileRaw2 = !import.meta.env.PROD ? localStorage.getItem(profileKey) : null;
   let profileServiceImage2 = null;
   if (storedProfileRaw2) {
     try {
@@ -421,7 +421,7 @@ export const PortfolioPage = () => {
   // 2. portfolio customization profileImage if available
   // Customization Key: `student360_portfolio_customization_${registerNo}`
   const customKey = `student360_portfolio_customization_${registerNo}`;
-  const customRaw = localStorage.getItem(customKey);
+  const customRaw = !import.meta.env.PROD ? localStorage.getItem(customKey) : null;
   let customProfileImage = null;
   if (customRaw) {
     try {
@@ -431,7 +431,7 @@ export const PortfolioPage = () => {
   }
 
   // 3. student.profileImage & 4. student.profile_image
-  const studentProfileImage = student?.profileImage || student?.profile_image;
+  const studentProfileImage = portfolio?.profileImage || portfolio?.profile_image || student?.profileImage || student?.profile_image;
 
   // 5. currentUser.profileImage if available
   const isOwn = user?.role === "student" && (user?.register_no === registerNo || user?.registerNo === registerNo);
@@ -439,7 +439,7 @@ export const PortfolioPage = () => {
 
   // Final priority list resolution
   const avatarUrl = getStudentImageUrl({
-    profileImage: profileServiceImage || profileServiceImage2 || customProfileImage || studentProfileImage || currentUserImage,
+    profileImage: studentProfileImage || profileServiceImage || profileServiceImage2 || customProfileImage || currentUserImage,
     student: portfolio?.student,
     registerNo: registerNo,
     role: isOwn ? "student" : null

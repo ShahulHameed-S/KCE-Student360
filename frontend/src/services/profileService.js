@@ -35,6 +35,9 @@ export const profileService = {
     } catch (error) {
       if (error.code === "ERR_NETWORK" || !error.response) {
         console.warn("Backend offline. Returning mock profile from localStorage.");
+        if (import.meta.env.PROD) {
+          throw error;
+        }
         const key = `student360_profile_${role}_${userId}`;
         const stored = localStorage.getItem(key);
         if (stored) {
@@ -141,6 +144,9 @@ export const profileService = {
     } catch (error) {
       if (error.code === "ERR_NETWORK" || !error.response) {
         console.warn("Backend offline. Saving profile settings to localStorage.");
+        if (import.meta.env.PROD) {
+          throw error;
+        }
         const key = `student360_profile_${role}_${userId}`;
         localStorage.setItem(key, JSON.stringify(data));
         return data;

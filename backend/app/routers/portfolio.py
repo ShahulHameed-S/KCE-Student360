@@ -74,7 +74,8 @@ async def get_portfolio_customization(
     current_user: User = Depends(get_current_user)
 ):
     """Retrieves portfolio customization settings for a student."""
-    student = db.query(Student).filter(Student.register_no == register_no).first()
+    from sqlalchemy import func
+    student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
 
@@ -126,7 +127,8 @@ async def update_portfolio_customization(
     current_user: User = Depends(get_current_user)
 ):
     """Updates student's own portfolio theme, headline, Visibility limits, and links."""
-    student = db.query(Student).filter(Student.register_no == register_no).first()
+    from sqlalchemy import func
+    student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
 

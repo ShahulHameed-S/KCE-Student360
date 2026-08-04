@@ -1697,8 +1697,12 @@ export const FacultyDashboard = () => {
             setStudents([]);
           } else {
             // Execute parallel requests safely for other roles
+            const studentFetchPromise = user?.role === "mentor"
+              ? mentorService.getAssignedStudents()
+              : studentService.getAllStudents();
+
             const results = await Promise.allSettled([
-              studentService.getAllStudents(),
+              studentFetchPromise,
               mentorService.getPendingApprovals(),
               mentorService.getAllApprovals(),
               uploadService.getScoresCount()
@@ -2187,20 +2191,34 @@ export const FacultyDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                      {needyStudents.slice(0, 5).map((st) => (
-                        <tr key={st.id} className="hover:bg-[#F7F7F7] transition-colors">
-                          <td className="py-2 px-3 text-[#214C55]">
-                            <Link to={`/students/${st.id}`} className="hover:underline font-black">{st.name}</Link>
-                            <span className="block text-[9px] text-[#6B7280] mt-0.5">{st.register_no}</span>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <ScoreBadge score={st.overall_score} />
-                          </td>
-                          <td className="py-2 px-3">
-                            <DomainBadge domain={st.weakest_domain} />
+                      {totalStudents === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-[#6B7280] font-black uppercase">
+                            No students assigned yet
                           </td>
                         </tr>
-                      ))}
+                      ) : needyStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-[#15803D] font-black uppercase">
+                            All assigned students are performing above threshold
+                          </td>
+                        </tr>
+                      ) : (
+                        needyStudents.slice(0, 5).map((st) => (
+                          <tr key={st.id} className="hover:bg-[#F7F7F7] transition-colors">
+                            <td className="py-2 px-3 text-[#214C55]">
+                              <Link to={`/students/${st.id}`} className="hover:underline font-black">{st.name}</Link>
+                              <span className="block text-[9px] text-[#6B7280] mt-0.5">{st.register_no}</span>
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <ScoreBadge score={st.overall_score} />
+                            </td>
+                            <td className="py-2 px-3">
+                              <DomainBadge domain={st.weakest_domain} />
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>

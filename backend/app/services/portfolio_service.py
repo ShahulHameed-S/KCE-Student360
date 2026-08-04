@@ -43,7 +43,8 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
     Aggregates all profile, submissions, performance averages, resume details,
     customization configurations, and AI analytics for a public student portfolio.
     """
-    student = db.query(Student).filter(Student.register_no == register_no).first()
+    from sqlalchemy import func
+    student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
     if not student:
         return None
 

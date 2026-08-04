@@ -8,6 +8,9 @@ export const leaderboardService = {
       return response.data;
     } catch (error) {
       console.warn("Overall Leaderboard API failed, returning mock overall leaderboard:", error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
       return mockOverallLeaderboard;
     }
   },
@@ -26,6 +29,9 @@ export const leaderboardService = {
       return response.data;
     } catch (error) {
       console.warn(`Domain Leaderboard API for ${cleanDomain} failed, returning mock domain leaderboard:`, error.message);
+      if (import.meta.env.PROD) {
+        throw error;
+      }
       return getDomainLeaderboard(cleanDomain);
     }
   }

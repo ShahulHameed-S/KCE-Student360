@@ -60,10 +60,24 @@ def create_user_auth_payload(user: User, db: Session = None):
     register_no = None
     profile_image = None
 
-    if user.role == "student" and user.student_profile:
-        student_id = user.student_profile.id
-        register_no = user.student_profile.register_no
-        profile_image = user.student_profile.profile_image or (user.user_profile.profile_image if user.user_profile else None)
+    if user.role == "student":
+        student = user.student_profile
+        if not student and db is not None:
+            student = db.query(Student).filter(Student.user_id == user.id).first()
+            if not student:
+                student = db.query(Student).filter(Student.email == user.email).first()
+            if not student:
+                student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(user.username)).first()
+            if student:
+                student.user_id = user.id
+                db.add(student)
+                db.commit()
+                db.refresh(user)
+                student = user.student_profile
+        if student:
+            student_id = student.id
+            register_no = student.register_no
+            profile_image = student.profile_image or (user.user_profile.profile_image if user.user_profile else None)
     elif user.user_profile and user.user_profile.profile_image:
         profile_image = user.user_profile.profile_image
 

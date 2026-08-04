@@ -480,43 +480,52 @@ async def upload_students(
                 hashed_user_password = hashed_default_password
             
             with db.begin_nested():
-                student = db.query(Student).filter(Student.register_no == register_no).first()
+                from sqlalchemy import func, and_
+                student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
+                
+                email = raw_email
+                if not email:
+                    email = clean_and_generate_email(name, register_no, db)
+                
+                user = None
+                if student and student.user_id:
+                    user = db.query(User).filter(User.id == student.user_id).first()
+                
+                if not user:
+                    user = db.query(User).filter(
+                        (func.lower(User.username) == func.lower(register_no)) | 
+                        (func.lower(User.email) == func.lower(email))
+                    ).first()
+                
+                if not user:
+                    user = User(
+                        username=register_no,
+                        email=email,
+                        password_hash=hashed_user_password,
+                        role="student",
+                        is_active=True
+                    )
+                    db.add(user)
+                    db.flush()
+                else:
+                    user.username = register_no
+                    user.role = "student"
+                    user.is_active = True
+                    db.flush()
                 
                 if student:
-                    # Update safe fields only
                     student.name = name
+                    student.user_id = user.id
                     student.department = department
                     student.year = year
                     student.section = section
                     if phone:
                         student.phone = phone
                     student.batch = batch
-                    
-                    up = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
-                    if up:
-                        up.full_name = name
-                        if phone:
-                            up.phone = phone
-                        up.department = department
-                        
+                    student.email = email
                     db.flush()
                     updated += 1
                 else:
-                    email = raw_email
-                    if not email:
-                        email = clean_and_generate_email(name, register_no, db)
-                        
-                    user = db.query(User).filter((User.username == register_no) | (User.email == email)).first()
-                    if not user:
-                        user = User(
-                            username=register_no,
-                            email=email,
-                            password_hash=hashed_user_password,
-                            role="student"
-                        )
-                        db.add(user)
-                        db.flush()
-                        
                     student = Student(
                         user_id=user.id,
                         register_no=register_no,
@@ -530,58 +539,89 @@ async def upload_students(
                     )
                     db.add(student)
                     db.flush()
-                    
-                    up = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
-                    if not up:
-                        up = UserProfile(
-                            user_id=user.id,
-                            full_name=name,
-                            email=email,
-                            phone=phone,
-                            department=department,
-                            location="Coimbatore"
-                        )
-                        db.add(up)
-                        
-                    about = db.query(StudentAbout).filter(StudentAbout.student_id == student.id).first()
-                    if not about:
-                        about = StudentAbout(
-                            student_id=student.id,
-                            headline="AI & DS Student | Java Full Stack Developer | Aspiring AI Engineer",
-                            about_me=f"I am {name}, studying Artificial Intelligence & Data Science at Karpagam College of Engineering.",
-                            career_objective="To build a strong career as an AI Engineer and Full Stack Developer.",
-                            skills_json='["AI & Data Science", "Java", "React", "Full Stack Development", "Python", "DSA", "DBMS", "FastAPI", "PostgreSQL"]'
-                        )
-                        db.add(about)
-                        
-                    cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
-                    if not cust:
-                        cust = PortfolioCustomization(
-                            student_id=student.id,
-                            headline="AI & DS Student | Java Full Stack Developer | Aspiring AI Engineer",
-                            about_me=f"I am {name}, studying Artificial Intelligence & Data Science at Karpagam College of Engineering.",
-                            career_objective="To build a strong career as an AI Engineer and Full Stack Developer.",
-                            skills_json='["AI & Data Science", "Java", "React", "Full Stack Development", "Python", "DSA", "DBMS", "FastAPI", "PostgreSQL"]',
-                            theme="Dark Minimal",
-                            section_visibility_json='{"showProjects":true,"showCertifications":true,"showAchievements":true,"showAcademicHighlights":true,"showContactLinks":true}',
-                            resume_visibility=True
-                        )
-                        db.add(cust)
-                        
-                    db.flush()
                     inserted += 1
                 
-                # Optionally assign mentor if mentor_email is present
+                up = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+                if not up:
+                    up = UserProfile(
+                        user_id=user.id,
+                        full_name=name,
+                        email=email,
+                        phone=phone,
+                        department=department,
+                        location="Coimbatore"
+                    )
+                    db.add(up)
+                else:
+                    up.full_name = name
+                    up.email = email
+                    if phone:
+                        up.phone = phone
+                    up.department = department
+                
+                about = db.query(StudentAbout).filter(StudentAbout.student_id == student.id).first()
+                if not about:
+                    about = StudentAbout(
+                        student_id=student.id,
+                        headline="AI & DS Student | Java Full Stack Developer | Aspiring AI Engineer",
+                        about_me=f"I am {name}, studying Artificial Intelligence & Data Science at Karpagam College of Engineering.",
+                        career_objective="To build a strong career as an AI Engineer and Full Stack Developer.",
+                        skills_json='["AI & Data Science", "Java", "React", "Full Stack Development", "Python", "DSA", "DBMS", "FastAPI", "PostgreSQL"]'
+                    )
+                    db.add(about)
+                    
+                cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
+                if not cust:
+                    cust = PortfolioCustomization(
+                        student_id=student.id,
+                        headline="AI & DS Student | Java Full Stack Developer | Aspiring AI Engineer",
+                        about_me=f"I am {name}, studying Artificial Intelligence & Data Science at Karpagam College of Engineering.",
+                        career_objective="To build a strong career as an AI Engineer and Full Stack Developer.",
+                        skills_json='["AI & Data Science", "Java", "React", "Full Stack Development", "Python", "DSA", "DBMS", "FastAPI", "PostgreSQL"]',
+                        theme="Dark Minimal",
+                        section_visibility_json='{"showProjects":true,"showCertifications":true,"showAchievements":true,"showAcademicHighlights":true,"showContactLinks":true}',
+                        resume_visibility=True
+                    )
+                    db.add(cust)
+                    
+                db.flush()
+                
+                # Auto Mentor Assignment logic
                 m_email_idx = col_mapping.get("mentor_email")
                 mentor_email = str(row[m_email_idx]).strip() if (m_email_idx is not None and m_email_idx < len(row) and row[m_email_idx] is not None) else ""
+                
+                mentor_to_assign = None
                 if mentor_email:
-                    mentor = db.query(User).filter(User.email.ilike(mentor_email), User.role == "mentor").first()
-                    if mentor:
-                        existing_assign = db.query(MentorAssignment).filter(
-                            MentorAssignment.student_id == student.id
-                        ).first()
-                        if not existing_assign:
-                            new_assign = MentorAssignment(mentor_id=mentor.id, student_id=student.id)
+                    mentor_to_assign = db.query(User).filter(User.email.ilike(mentor_email), User.role == "mentor").first()
+                
+                if not mentor_to_assign:
+                    filter_conds = [
+                        Student.department == department,
+                        Student.section == section,
+                        Student.batch == batch
+                    ]
+                    if year:
+                        filter_conds.append(Student.year == year)
+                    
+                    matching_assignments = db.query(MentorAssignment.mentor_id).join(Student).filter(
+                        and_(*filter_conds)
+                    ).distinct().all()
+                    
+                    mentor_ids = [r[0] for r in matching_assignments]
+                    if len(mentor_ids) == 1:
+                        mentor_to_assign = db.query(User).filter(User.id == mentor_ids[0], User.role == "mentor").first()
+                    elif len(mentor_ids) > 1:
+                        print(f"[WARNING] Multiple mentors {mentor_ids} found for class Dept={department}, Yr={year}, Sec={section}, Batch={batch}. Skipping auto-assignment for student {register_no}.")
+                
+                if mentor_to_assign:
+                    existing_assign = db.query(MentorAssignment).filter(
+                        MentorAssignment.student_id == student.id,
+                        MentorAssignment.mentor_id == mentor_to_assign.id
+                    ).first()
+                    if not existing_assign:
+                        any_assign = db.query(MentorAssignment).filter(MentorAssignment.student_id == student.id).first()
+                        if not any_assign:
+                            new_assign = MentorAssignment(mentor_id=mentor_to_assign.id, student_id=student.id)
                             db.add(new_assign)
                             
                 recalculate_student_analytics(db, student.id)
@@ -960,4 +1000,49 @@ async def upload_mentors(
         "updated": updated,
         "skipped": skipped,
         "errors": errors_list
+    }
+
+
+@router.get("/debug/student/{register_no}")
+async def admin_debug_student(
+    register_no: str,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to verify a student profile and its user linking."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+    
+    student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
+    
+    if not student:
+        return {
+            "student_exists": False,
+            "student_id": None,
+            "register_no": register_no,
+            "student_user_id": None,
+            "user_exists": False,
+            "user_id": None,
+            "user_username": None,
+            "user_email": None,
+            "user_role": None,
+            "user_is_active": None,
+            "mentor_assignments_count": 0
+        }
+        
+    user = db.query(User).filter(User.id == student.user_id).first()
+    assignments_count = db.query(MentorAssignment).filter(MentorAssignment.student_id == student.id).count()
+    
+    return {
+        "student_exists": True,
+        "student_id": student.id,
+        "register_no": student.register_no,
+        "student_user_id": student.user_id,
+        "user_exists": user is not None,
+        "user_id": user.id if user else None,
+        "user_username": user.username if user else None,
+        "user_email": user.email if user else None,
+        "user_role": user.role if user else None,
+        "user_is_active": user.is_active if user else None,
+        "mentor_assignments_count": assignments_count
     }
