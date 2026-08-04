@@ -10,7 +10,7 @@ export const uploadStudentsExcel = async (selectedFile) => {
   }
 
   const response = await api.post("/admin/upload/students", formData, {
-    timeout: 120000
+    timeout: 180000
   });
   return response.data;
 };
@@ -24,7 +24,7 @@ export const uploadFacultyExcel = async (selectedFile) => {
   }
 
   const response = await api.post("/admin/upload/faculty", formData, {
-    timeout: 120000
+    timeout: 180000
   });
   return response.data;
 };
@@ -38,7 +38,7 @@ export const uploadMentorsExcel = async (selectedFile) => {
   }
 
   const response = await api.post("/admin/upload/mentors", formData, {
-    timeout: 120000
+    timeout: 180000
   });
   return response.data;
 };
@@ -48,16 +48,26 @@ export const adminUploadService = {
   uploadFacultyExcel,
   uploadMentorsExcel,
 
-  getStudentsList: async () => {
+  getStudentsList: async (page, limit, search) => {
+    const params = {};
+    if (page !== undefined) params.page = page;
+    if (limit !== undefined) params.limit = limit;
+    if (search !== undefined) params.search = search;
     const response = await api.get("/admin/students", {
+      params,
       timeout: 120000
     });
     return response.data;
   },
 
-  getFacultyList: async () => {
+  getFacultyList: async (page, limit, search) => {
     try {
+      const params = {};
+      if (page !== undefined) params.page = page;
+      if (limit !== undefined) params.limit = limit;
+      if (search !== undefined) params.search = search;
       const response = await api.get("/admin/faculty", {
+        params,
         timeout: 120000
       });
       return response.data;
@@ -67,9 +77,14 @@ export const adminUploadService = {
     }
   },
 
-  getMentorsList: async () => {
+  getMentorsList: async (page, limit, search) => {
     try {
+      const params = {};
+      if (page !== undefined) params.page = page;
+      if (limit !== undefined) params.limit = limit;
+      if (search !== undefined) params.search = search;
       const response = await api.get("/admin/mentors", {
+        params,
         timeout: 120000
       });
       return response.data;
@@ -79,3 +94,4 @@ export const adminUploadService = {
     }
   },
 };
+

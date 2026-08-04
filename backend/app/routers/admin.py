@@ -27,102 +27,218 @@ async def get_admin_overview():
         "total_scores_uploaded": 0
     }
 
-# Students CRUD
-@router.get("/students")
-async def admin_get_students(
+@router.get("/counts")
+async def get_admin_counts(
     current_user: User = Depends(RoleRequired(["admin"])),
     db: Session = Depends(get_db)
 ):
-    students = db.query(Student).all()
-    print("Admin students count:", len(students))
-    result = []
-    for s in students:
-        s_data = {
-            "id": s.id,
-            "register_no": s.register_no,
-            "name": s.name,
-            "email": s.email,
-            "phone": s.phone,
-            "department": s.department,
-            "year": s.year,
-            "section": s.section,
-            "batch": s.batch,
-            "user_id": s.user_id,
+    """Retrieves lightweight administrative counts for students, faculty, mentors, and scores."""
+    from app.models.student import Student
+    from app.models.score import AssessmentScore
+    
+    total_students = db.query(Student).count()
+    total_faculty = db.query(User).filter(User.role == "faculty").count()
+    total_mentors = db.query(User).filter(User.role == "mentor").count()
+    total_scores = db.query(AssessmentScore).count()
+    
+    return {
+        "students": total_students,
+        "faculty": total_faculty,
+        "mentors": total_mentors,
+        "scores": total_scores
+    }
+
+# Students CRUD
+@router.get("/students")
+async def admin_get_students(
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy.orm import joinedload
+    query = db.query(Student).options(joinedload(Student.user))
+    
+    if search:
+        query = query.filter(
+            (Student.register_no.ilike(f"%{search}%")) |
+            (Student.name.ilike(f"%{search}%")) |
+            (Student.email.ilike(f"%{search}%"))
+        )
+    
+    total = query.count()
+    
+    if page is not None and limit is not None:
+        offset = (page - 1) * limit
+        students = query.offset(offset).limit(limit).all()
+        result = []
+        for s in students:
+            s_data = {
+                "id": s.id,
+                "register_no": s.register_no,
+                "name": s.name,
+                "email": s.email,
+                "phone": s.phone,
+                "department": s.department,
+                "year": s.year,
+                "section": s.section,
+                "batch": s.batch,
+                "user_id": s.user_id,
+            }
+            if s.user:
+                s_data["user_email"] = s.user.email
+                s_data["role"] = s.user.role
+                s_data["is_active"] = s.user.is_active
+                s_data["status"] = "Active" if s.user.is_active else "Inactive"
+            else:
+                s_data["user_email"] = None
+                s_data["role"] = None
+                s_data["is_active"] = None
+                s_data["status"] = "Inactive"
+            result.append(s_data)
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "limit": limit
         }
-        if s.user:
-            s_data["user_email"] = s.user.email
-            s_data["role"] = s.user.role
-            s_data["is_active"] = s.user.is_active
-            s_data["status"] = "Active" if s.user.is_active else "Inactive"
-        else:
-            s_data["user_email"] = None
-            s_data["role"] = None
-            s_data["is_active"] = None
-            s_data["status"] = "Inactive"
-        result.append(s_data)
-    return result
-
-@router.post("/students")
-async def admin_create_student(payload: Dict[str, Any]):
-    return {"success": True}
-
-@router.put("/students/{id}")
-async def admin_update_student(id: int, payload: Dict[str, Any]):
-    return {"success": True}
-
-@router.delete("/students/{id}")
-async def admin_delete_student(id: int):
-    return {"success": True}
-
+    else:
+        students = query.all()
+        result = []
+        for s in students:
+            s_data = {
+                "id": s.id,
+                "register_no": s.register_no,
+                "name": s.name,
+                "email": s.email,
+                "phone": s.phone,
+                "department": s.department,
+                "year": s.year,
+                "section": s.section,
+                "batch": s.batch,
+                "user_id": s.user_id,
+            }
+            if s.user:
+                s_data["user_email"] = s.user.email
+                s_data["role"] = s.user.role
+                s_data["is_active"] = s.user.is_active
+                s_data["status"] = "Active" if s.user.is_active else "Inactive"
+            else:
+                s_data["user_email"] = None
+                s_data["role"] = None
+                s_data["is_active"] = None
+                s_data["status"] = "Inactive"
+            result.append(s_data)
+        return result
 
 # Faculty CRUD
 @router.get("/faculty")
 async def admin_get_faculty(
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+    search: Optional[str] = None,
     current_user: User = Depends(RoleRequired(["admin"])),
     db: Session = Depends(get_db)
 ):
-    users = db.query(User).filter(User.role == "faculty").all()
-    result = []
-    for u in users:
-        fp = u.faculty_profile
-        result.append({
-            "id": u.id,
-            "name": fp.name if fp else u.user_profile.full_name if u.user_profile else u.username,
-            "email": u.email,
-            "department": fp.department if fp else u.user_profile.department if u.user_profile else "CSE",
-            "role": u.role,
-            "phone": fp.phone if fp else u.user_profile.phone if u.user_profile else "",
-            "status": "Active" if u.is_active else "Inactive",
-            "designation": fp.designation if fp else "Faculty"
-        })
-    return result
-
-@router.post("/faculty")
-async def admin_create_faculty(payload: Dict[str, Any]):
-    return {"success": True}
-
-@router.put("/faculty/{id}")
-async def admin_update_faculty(id: int, payload: Dict[str, Any]):
-    return {"success": True}
-
-@router.delete("/faculty/{id}")
-async def admin_delete_faculty(id: int):
-    return {"success": True}
-
+    from sqlalchemy.orm import joinedload
+    query = db.query(User).filter(User.role == "faculty")
+    
+    if search:
+        query = query.outerjoin(FacultyProfile).outerjoin(UserProfile).filter(
+            (User.email.ilike(f"%{search}%")) |
+            (User.username.ilike(f"%{search}%")) |
+            (FacultyProfile.name.ilike(f"%{search}%")) |
+            (UserProfile.full_name.ilike(f"%{search}%"))
+        )
+        
+    total = query.count()
+    query = query.options(joinedload(User.faculty_profile), joinedload(User.user_profile))
+    
+    if page is not None and limit is not None:
+        offset = (page - 1) * limit
+        users = query.offset(offset).limit(limit).all()
+        result = []
+        for u in users:
+            fp = u.faculty_profile
+            result.append({
+                "id": u.id,
+                "name": fp.name if fp else u.user_profile.full_name if u.user_profile else u.username,
+                "email": u.email,
+                "department": fp.department if fp else u.user_profile.department if u.user_profile else "CSE",
+                "role": u.role,
+                "phone": fp.phone if fp else u.user_profile.phone if u.user_profile else "",
+                "status": "Active" if u.is_active else "Inactive",
+                "designation": fp.designation if fp else "Faculty"
+            })
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "limit": limit
+        }
+    else:
+        users = query.all()
+        result = []
+        for u in users:
+            fp = u.faculty_profile
+            result.append({
+                "id": u.id,
+                "name": fp.name if fp else u.user_profile.full_name if u.user_profile else u.username,
+                "email": u.email,
+                "department": fp.department if fp else u.user_profile.department if u.user_profile else "CSE",
+                "role": u.role,
+                "phone": fp.phone if fp else u.user_profile.phone if u.user_profile else "",
+                "status": "Active" if u.is_active else "Inactive",
+                "designation": fp.designation if fp else "Faculty"
+            })
+        return result
 
 # Mentors CRUD
 @router.get("/mentors")
 async def admin_get_mentors(
+    page: Optional[int] = None,
+    limit: Optional[int] = None,
+    search: Optional[str] = None,
     current_user: User = Depends(RoleRequired(["admin"])),
     db: Session = Depends(get_db)
 ):
-    users = db.query(User).filter(User.role == "mentor").all()
+    from sqlalchemy.orm import joinedload
+    query = db.query(User).filter(User.role == "mentor")
+    
+    if search:
+        query = query.outerjoin(FacultyProfile).outerjoin(UserProfile).filter(
+            (User.email.ilike(f"%{search}%")) |
+            (User.username.ilike(f"%{search}%")) |
+            (FacultyProfile.name.ilike(f"%{search}%")) |
+            (UserProfile.full_name.ilike(f"%{search}%"))
+        )
+        
+    total = query.count()
+    query = query.options(joinedload(User.faculty_profile), joinedload(User.user_profile))
+    
+    if page is not None and limit is not None:
+        offset = (page - 1) * limit
+        users = query.offset(offset).limit(limit).all()
+    else:
+        users = query.all()
+        
+    user_ids = [u.id for u in users]
+    assignments = {}
+    if user_ids:
+        db_assignments = db.query(MentorAssignment).options(joinedload(MentorAssignment.student)).filter(
+            MentorAssignment.mentor_id.in_(user_ids)
+        ).all()
+        for ass in db_assignments:
+            if ass.mentor_id not in assignments:
+                assignments[ass.mentor_id] = ass
+                
     result = []
     for u in users:
         up = u.user_profile
         fp = u.faculty_profile
         assigned_class = "None"
-        assignment = db.query(MentorAssignment).filter(MentorAssignment.mentor_id == u.id).first()
+        assignment = assignments.get(u.id)
         if assignment and assignment.student:
             s = assignment.student
             assigned_class = f"{s.year} {s.section} ({s.batch})"
@@ -137,7 +253,17 @@ async def admin_get_mentors(
             "status": "Active" if u.is_active else "Inactive",
             "phone": up.phone if up else fp.phone if fp else ""
         })
-    return result
+        
+    if page is not None and limit is not None:
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "limit": limit
+        }
+    else:
+        return result
+
 
 @router.post("/mentors")
 async def admin_create_mentor(payload: Dict[str, Any]):

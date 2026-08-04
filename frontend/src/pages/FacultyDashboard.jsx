@@ -47,7 +47,7 @@ import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
 import { adminUploadService } from "../services/adminUploadService";
-import { getAdminStudents, getAdminFaculty, getAdminMentors, getAdminUsers } from "../services/adminService";
+import { getAdminStudents, getAdminFaculty, getAdminMentors, getAdminUsers, getAdminCounts } from "../services/adminService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -1046,6 +1046,14 @@ export const FacultyDashboard = () => {
   const [adminTotalMentors, setAdminTotalMentors] = useState(0);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState("");
+  
+  // Student pagination & search states
+  const [adminStudentsPage, setAdminStudentsPage] = useState(1);
+  const [adminStudentsLimit] = useState(20);
+  const [adminStudentsSearch, setAdminStudentsSearch] = useState("");
+  const [adminStudentsSearchInput, setStudentsSearchInput] = useState("");
+  const [adminStudentsTotal, setAdminStudentsTotal] = useState(0);
+  const [showStudentsWakeup, setShowStudentsWakeup] = useState(false);
 
   // Student specific data states
   const [studentProfile, setStudentProfile] = useState(null);
@@ -1135,7 +1143,25 @@ export const FacultyDashboard = () => {
   const [adminSection, setAdminSection] = useState("dashboard");
   const [selectedItem, setSelectedItem] = useState(null);
   const [faculties, setFaculties] = useState([]);
+  const [facultiesLoading, setFacultiesLoading] = useState(false);
+  const [facultiesError, setFacultiesError] = useState("");
+  const [facultiesPage, setFacultiesPage] = useState(1);
+  const [facultiesLimit] = useState(20);
+  const [facultiesSearch, setFacultiesSearch] = useState("");
+  const [facultiesSearchInput, setFacultiesSearchInput] = useState("");
+  const [facultiesTotal, setFacultiesTotal] = useState(0);
+  const [showFacultyWakeup, setShowFacultyWakeup] = useState(false);
+
   const [mentors, setMentors] = useState([]);
+  const [mentorsLoading, setMentorsLoading] = useState(false);
+  const [mentorsError, setMentorsError] = useState("");
+  const [mentorsPage, setMentorsPage] = useState(1);
+  const [mentorsLimit] = useState(20);
+  const [mentorsSearch, setMentorsSearch] = useState("");
+  const [mentorsSearchInput, setMentorsSearchInput] = useState("");
+  const [mentorsTotal, setMentorsTotal] = useState(0);
+  const [showMentorsWakeup, setShowMentorsWakeup] = useState(false);
+
   const [usersList, setUsersList] = useState([]);
 
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
@@ -1175,17 +1201,83 @@ export const FacultyDashboard = () => {
   };
 
   const loadAdminStudents = async () => {
+    setAdminStudentsLoading(true);
+    setAdminStudentsError("");
+    setShowStudentsWakeup(false);
+    const wakeupTimer = setTimeout(() => {
+      setShowStudentsWakeup(true);
+    }, 5000);
+
     try {
-      setAdminStudentsLoading(true);
-      setAdminStudentsError("");
-      const students = await getAdminStudents();
-      console.log("Admin students API response:", students);
-      setAdminStudents(Array.isArray(students) ? students : []);
+      const res = await getAdminStudents(adminStudentsPage, adminStudentsLimit, adminStudentsSearch);
+      console.log("Admin students API response:", res);
+      if (res && res.items !== undefined) {
+        setAdminStudents(res.items || []);
+        setAdminStudentsTotal(res.total || 0);
+      } else {
+        setAdminStudents(Array.isArray(res) ? res : []);
+        setAdminStudentsTotal(Array.isArray(res) ? res.length : 0);
+      }
     } catch (error) {
       console.error("Admin students load error:", error);
-      setAdminStudentsError("Unable to load students from server.");
+      setAdminStudentsError("Unable to load data from server. Please retry.");
     } finally {
+      clearTimeout(wakeupTimer);
       setAdminStudentsLoading(false);
+    }
+  };
+
+  const loadAdminFaculty = async () => {
+    setFacultiesLoading(true);
+    setFacultiesError("");
+    setShowFacultyWakeup(false);
+    const wakeupTimer = setTimeout(() => {
+      setShowFacultyWakeup(true);
+    }, 5000);
+
+    try {
+      const res = await adminUploadService.getFacultyList(facultiesPage, facultiesLimit, facultiesSearch);
+      console.log("Admin faculty API response:", res);
+      if (res && res.items !== undefined) {
+        setFaculties(res.items || []);
+        setFacultiesTotal(res.total || 0);
+      } else {
+        setFaculties(Array.isArray(res) ? res : []);
+        setFacultiesTotal(Array.isArray(res) ? res.length : 0);
+      }
+    } catch (error) {
+      console.error("Admin faculty load error:", error);
+      setFacultiesError("Unable to load data from server. Please retry.");
+    } finally {
+      clearTimeout(wakeupTimer);
+      setFacultiesLoading(false);
+    }
+  };
+
+  const loadAdminMentors = async () => {
+    setMentorsLoading(true);
+    setMentorsError("");
+    setShowMentorsWakeup(false);
+    const wakeupTimer = setTimeout(() => {
+      setShowMentorsWakeup(true);
+    }, 5000);
+
+    try {
+      const res = await adminUploadService.getMentorsList(mentorsPage, mentorsLimit, mentorsSearch);
+      console.log("Admin mentors API response:", res);
+      if (res && res.items !== undefined) {
+        setMentors(res.items || []);
+        setMentorsTotal(res.total || 0);
+      } else {
+        setMentors(Array.isArray(res) ? res : []);
+        setMentorsTotal(Array.isArray(res) ? res.length : 0);
+      }
+    } catch (error) {
+      console.error("Admin mentors load error:", error);
+      setMentorsError("Unable to load data from server. Please retry.");
+    } finally {
+      clearTimeout(wakeupTimer);
+      setMentorsLoading(false);
     }
   };
 
@@ -1209,7 +1301,7 @@ export const FacultyDashboard = () => {
     if (user?.role === "admin" && adminSection === "manage-students") {
       loadAdminStudents();
     }
-  }, [adminSection, user]);
+  }, [adminSection, user, adminStudentsPage, adminStudentsSearch]);
 
   useEffect(() => {
     if (user?.role === "admin" && adminSection === "manage-users") {
@@ -1219,13 +1311,13 @@ export const FacultyDashboard = () => {
 
   useEffect(() => {
     if (user?.role === "admin" && adminSection === "manage-faculty") {
-      adminUploadService.getFacultyList().then(res => setFaculties(res)).catch(e => console.warn(e));
+      loadAdminFaculty();
     }
-  }, [adminSection, user]);
+  }, [adminSection, user, facultiesPage, facultiesSearch]);
 
   useEffect(() => {
     if (user?.role === "admin" && (adminSection === "manage-mentors" || adminSection === "assign-mentor")) {
-      adminUploadService.getMentorsList().then(res => setMentors(res)).catch(e => console.warn(e));
+      loadAdminMentors();
     }
   }, [adminSection, user]);
 
@@ -1519,35 +1611,19 @@ export const FacultyDashboard = () => {
           let studentListResp = [];
 
           if (user?.role === "admin") {
-            const [studentsResult, facultyResult, mentorsResult, scoresResult] = await Promise.allSettled([
-              getAdminStudents(),
-              getAdminFaculty(),
-              getAdminMentors(),
-              uploadService.getScoresCount()
-            ]);
-
-            const totalStudentsVal = studentsResult.status === "fulfilled" && Array.isArray(studentsResult.value) ? studentsResult.value.length : 0;
-            const totalFacultyVal = facultyResult.status === "fulfilled" && Array.isArray(facultyResult.value) ? facultyResult.value.length : 0;
-            const totalMentorsVal = mentorsResult.status === "fulfilled" && Array.isArray(mentorsResult.value) ? mentorsResult.value.length : 0;
-            const scoresCountResp = scoresResult.status === "fulfilled" ? scoresResult.value : 0;
-
-            if (studentsResult.status === "rejected") {
-              console.warn("Failed to load admin count for students:", studentsResult.reason);
+            try {
+              const counts = await getAdminCounts();
+              setAdminTotalStudents(counts?.students ?? 0);
+              setAdminTotalFaculty(counts?.faculty ?? 0);
+              setAdminTotalMentors(counts?.mentors ?? 0);
+              setUploadedScoresCount(counts?.scores ?? 0);
+            } catch (err) {
+              console.warn("Failed to load admin counts:", err);
+              setAdminTotalStudents(0);
+              setAdminTotalFaculty(0);
+              setAdminTotalMentors(0);
+              setUploadedScoresCount(0);
             }
-            if (facultyResult.status === "rejected") {
-              console.warn("Failed to load admin count for faculty:", facultyResult.reason);
-            }
-            if (mentorsResult.status === "rejected") {
-              console.warn("Failed to load admin count for mentors:", mentorsResult.reason);
-            }
-            if (scoresResult.status === "rejected") {
-              console.warn("Failed to load admin count for scores count:", scoresResult.reason);
-            }
-
-            setAdminTotalStudents(totalStudentsVal);
-            setAdminTotalFaculty(totalFacultyVal);
-            setAdminTotalMentors(totalMentorsVal);
-            setUploadedScoresCount(scoresCountResp);
             setStudents([]);
           } else {
             // Execute parallel requests safely for other roles
@@ -3796,10 +3872,52 @@ export const FacultyDashboard = () => {
                 </div>
               </div>
 
+              {/* Search Box */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setAdminStudentsSearch(adminStudentsSearchInput);
+                  setAdminStudentsPage(1);
+                }}
+                className="flex items-center gap-2 max-w-md pb-2"
+              >
+                <input
+                  type="text"
+                  placeholder="Search students by register no, name, or email..."
+                  value={adminStudentsSearchInput}
+                  onChange={(e) => setStudentsSearchInput(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-xs font-bold text-[#111827] bg-white border border-[#D1D5DB] focus:outline-none focus:border-[#C76F2B]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#163941] hover:bg-[#214C55] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
+                >
+                  Search
+                </button>
+                {adminStudentsSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudentsSearchInput("");
+                      setAdminStudentsSearch("");
+                      setAdminStudentsPage(1);
+                    }}
+                    className="px-3 py-1.5 border border-[#D1D5DB] text-xs font-bold uppercase hover:bg-slate-50 rounded-none text-slate-600 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </form>
+
               <div className="overflow-x-auto border border-[#D1D5DB]">
                 {adminStudentsLoading ? (
-                  <div className="p-8 text-center text-xs font-bold text-slate-500">
-                    Loading students from server...
+                  <div className="p-8 text-center text-xs font-bold text-slate-500 space-y-2">
+                    <div>Loading students from server...</div>
+                    {showStudentsWakeup && (
+                      <div className="text-[11px] text-[#C76F2B] font-semibold animate-pulse">
+                        Server is waking up, please wait...
+                      </div>
+                    )}
                   </div>
                 ) : adminStudentsError ? (
                   <div className="p-8 text-center text-xs font-bold text-red-600">
@@ -3846,21 +3964,21 @@ export const FacultyDashboard = () => {
                                 <button 
                                   onClick={() => { setSelectedItem(s); setActiveModal('viewStudent'); }} 
                                   title="View Details"
-                                  className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center"
+                                  className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center cursor-pointer"
                                 >
                                   <Eye size={13} />
                                 </button>
                                 <button 
                                   onClick={() => { setSelectedItem(s); setActiveModal('editStudent'); }} 
                                   title="Edit Student"
-                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
+                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center cursor-pointer"
                                 >
                                   <Edit2 size={13} />
                                 </button>
                                 <button 
                                   onClick={() => { setSelectedItem(s); setActiveModal('confirmRemoveStudent'); }} 
                                   title="Remove Student"
-                                  className="p-1 text-red-650 hover:bg-red-50 border border-red-205 flex items-center justify-center animate-fade-in"
+                                  className="p-1 text-red-650 hover:bg-red-50 border border-red-205 flex items-center justify-center animate-fade-in cursor-pointer"
                                 >
                                   <Trash2 size={13} />
                                 </button>
@@ -3873,6 +3991,32 @@ export const FacultyDashboard = () => {
                   </table>
                 )}
               </div>
+
+              {/* Pagination Controls */}
+              {!adminStudentsLoading && !adminStudentsError && adminStudents.length > 0 && (
+                <div className="flex justify-between items-center pt-4 border-t border-[#E5E5E5] text-xs font-bold text-[#214C55]">
+                  <div>
+                    Showing {adminStudents.length > 0 ? (adminStudentsPage - 1) * adminStudentsLimit + 1 : 0} to{" "}
+                    {Math.min(adminStudentsPage * adminStudentsLimit, adminStudentsTotal)} of {adminStudentsTotal} students
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      disabled={adminStudentsPage <= 1}
+                      onClick={() => setAdminStudentsPage(prev => Math.max(1, prev - 1))}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={adminStudentsPage * adminStudentsLimit >= adminStudentsTotal}
+                      onClick={() => setAdminStudentsPage(prev => prev + 1)}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3920,64 +4064,146 @@ export const FacultyDashboard = () => {
                 </div>
               </div>
 
+              {/* Search Box */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setFacultiesSearch(facultiesSearchInput);
+                  setFacultiesPage(1);
+                }}
+                className="flex items-center gap-2 max-w-md pb-2"
+              >
+                <input
+                  type="text"
+                  placeholder="Search faculty by name, department, or email..."
+                  value={facultiesSearchInput}
+                  onChange={(e) => setFacultiesSearchInput(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-xs font-bold text-[#111827] bg-white border border-[#D1D5DB] focus:outline-none focus:border-[#C76F2B]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#163941] hover:bg-[#214C55] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
+                >
+                  Search
+                </button>
+                {facultiesSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFacultiesSearchInput("");
+                      setFacultiesSearch("");
+                      setFacultiesPage(1);
+                    }}
+                    className="px-3 py-1.5 border border-[#D1D5DB] text-xs font-bold uppercase hover:bg-slate-50 rounded-none text-slate-600 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </form>
+
               <div className="overflow-x-auto border border-[#D1D5DB]">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
-                      <th className="py-3 px-4">Name</th>
-                      <th className="py-3 px-4">Email</th>
-                      <th className="py-3 px-4">Department</th>
-                      <th className="py-3 px-4">Role</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                    {faculties.map((f) => (
-                      <tr key={f.id} className="hover:bg-[#F7F7F7] transition-colors">
-                        <td className="py-2.5 px-4 text-[#214C55]">{f.name}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{f.email}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{f.department}</td>
-                        <td className="py-2.5 px-4 uppercase text-[10px] text-[#C76F2B] font-extrabold">{f.role}</td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
-                            f.status === "Inactive" 
-                              ? "bg-red-50 text-red-700 border-red-200" 
-                              : "bg-green-50 text-green-700 border-green-200"
-                          }`}>
-                            {f.status || "Active"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <div className="flex justify-center space-x-1.5">
-                            <button 
-                              onClick={() => { setSelectedItem(f); setActiveModal('viewFaculty'); }} 
-                              title="View Details"
-                              className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in"
-                            >
-                              <Eye size={13} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(f); setActiveModal('editFaculty'); }} 
-                              title="Edit Faculty"
-                              className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(f); setActiveModal('confirmRemoveFaculty'); }} 
-                              title="Remove Faculty"
-                              className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center animate-fade-in"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
+                {facultiesLoading ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500 space-y-2">
+                    <div>Loading faculty from server...</div>
+                    {showFacultyWakeup && (
+                      <div className="text-[11px] text-[#C76F2B] font-semibold animate-pulse">
+                        Server is waking up, please wait...
+                      </div>
+                    )}
+                  </div>
+                ) : facultiesError ? (
+                  <div className="p-8 text-center text-xs font-bold text-red-600">
+                    {facultiesError}
+                  </div>
+                ) : faculties.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500">
+                    No faculty found.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
+                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">Email</th>
+                        <th className="py-3 px-4">Department</th>
+                        <th className="py-3 px-4">Role</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
+                      {faculties.map((f) => (
+                        <tr key={f.id} className="hover:bg-[#F7F7F7] transition-colors">
+                          <td className="py-2.5 px-4 text-[#214C55]">{f.name}</td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-600">{f.email}</td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-600">{f.department}</td>
+                          <td className="py-2.5 px-4 uppercase text-[10px] text-[#C76F2B] font-extrabold">{f.role}</td>
+                          <td className="py-2.5 px-4 text-center">
+                            <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
+                              f.status === "Inactive" 
+                                ? "bg-red-50 text-red-700 border-red-200" 
+                                : "bg-green-50 text-green-700 border-green-200"
+                            }`}>
+                              {f.status || "Active"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <div className="flex justify-center space-x-1.5">
+                              <button 
+                                onClick={() => { setSelectedItem(f); setActiveModal('viewFaculty'); }} 
+                                title="View Details"
+                                className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in cursor-pointer"
+                              >
+                                <Eye size={13} />
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedItem(f); setActiveModal('editFaculty'); }} 
+                                title="Edit Faculty"
+                                className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center cursor-pointer"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedItem(f); setActiveModal('confirmRemoveFaculty'); }} 
+                                title="Remove Faculty"
+                                className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center animate-fade-in cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
+
+              {/* Pagination Controls */}
+              {!facultiesLoading && !facultiesError && faculties.length > 0 && (
+                <div className="flex justify-between items-center pt-4 border-t border-[#E5E5E5] text-xs font-bold text-[#214C55]">
+                  <div>
+                    Showing {faculties.length > 0 ? (facultiesPage - 1) * facultiesLimit + 1 : 0} to{" "}
+                    {Math.min(facultiesPage * facultiesLimit, facultiesTotal)} of {facultiesTotal} faculty
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      disabled={facultiesPage <= 1}
+                      onClick={() => setFacultiesPage(prev => Math.max(1, prev - 1))}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={facultiesPage * facultiesLimit >= facultiesTotal}
+                      onClick={() => setFacultiesPage(prev => prev + 1)}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -4025,66 +4251,148 @@ export const FacultyDashboard = () => {
                 </div>
               </div>
 
+              {/* Search Box */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setMentorsSearch(mentorsSearchInput);
+                  setMentorsPage(1);
+                }}
+                className="flex items-center gap-2 max-w-md pb-2"
+              >
+                <input
+                  type="text"
+                  placeholder="Search mentors by name, department, or email..."
+                  value={mentorsSearchInput}
+                  onChange={(e) => setMentorsSearchInput(e.target.value)}
+                  className="flex-1 px-3 py-1.5 text-xs font-bold text-[#111827] bg-white border border-[#D1D5DB] focus:outline-none focus:border-[#C76F2B]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-[#163941] hover:bg-[#214C55] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
+                >
+                  Search
+                </button>
+                {mentorsSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMentorsSearchInput("");
+                      setMentorsSearch("");
+                      setMentorsPage(1);
+                    }}
+                    className="px-3 py-1.5 border border-[#D1D5DB] text-xs font-bold uppercase hover:bg-slate-50 rounded-none text-slate-600 cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </form>
+
               <div className="overflow-x-auto border border-[#D1D5DB]">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
-                      <th className="py-3 px-4">Name</th>
-                      <th className="py-3 px-4">Email</th>
-                      <th className="py-3 px-4">Department</th>
-                      <th className="py-3 px-4">Mentor Type</th>
-                      <th className="py-3 px-4">Assigned Class</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                    {mentors.map((m) => (
-                      <tr key={m.id} className="hover:bg-[#F7F7F7] transition-colors">
-                        <td className="py-2.5 px-4 text-[#214C55]">{m.name}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{m.email}</td>
-                        <td className="py-2.5 px-4 font-semibold text-slate-600">{m.department}</td>
-                        <td className="py-2.5 px-4">{m.mentorType || "Class Mentor"}</td>
-                        <td className="py-2.5 px-4 font-black text-[#C76F2B]">{m.assignedClass || "None"}</td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
-                            m.status === "Inactive" 
-                              ? "bg-red-50 text-red-700 border-red-200" 
-                              : "bg-green-50 text-green-700 border-green-200"
-                          }`}>
-                            {m.status || "Active"}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <div className="flex justify-center space-x-1.5">
-                            <button 
-                              onClick={() => { setSelectedItem(m); setActiveModal('viewMentor'); }} 
-                              title="View Details"
-                              className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in"
-                            >
-                              <Eye size={13} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(m); setActiveModal('editMentor'); }} 
-                              title="Edit Mentor"
-                              className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center"
-                            >
-                              <Edit2 size={13} />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(m); setActiveModal('confirmRemoveMentor'); }} 
-                              title="Remove Mentor"
-                              className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center animate-fade-in"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </td>
+                {mentorsLoading ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500 space-y-2">
+                    <div>Loading mentors from server...</div>
+                    {showMentorsWakeup && (
+                      <div className="text-[11px] text-[#C76F2B] font-semibold animate-pulse">
+                        Server is waking up, please wait...
+                      </div>
+                    )}
+                  </div>
+                ) : mentorsError ? (
+                  <div className="p-8 text-center text-xs font-bold text-red-600">
+                    {mentorsError}
+                  </div>
+                ) : mentors.length === 0 ? (
+                  <div className="p-8 text-center text-xs font-bold text-slate-500">
+                    No mentors found.
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
+                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4">Email</th>
+                        <th className="py-3 px-4">Department</th>
+                        <th className="py-3 px-4">Mentor Type</th>
+                        <th className="py-3 px-4">Assigned Class</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
+                      {mentors.map((m) => (
+                        <tr key={m.id} className="hover:bg-[#F7F7F7] transition-colors">
+                          <td className="py-2.5 px-4 text-[#214C55]">{m.name}</td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-600">{m.email}</td>
+                          <td className="py-2.5 px-4 font-semibold text-slate-600">{m.department}</td>
+                          <td className="py-2.5 px-4">{m.mentorType || "Class Mentor"}</td>
+                          <td className="py-2.5 px-4 font-black text-[#C76F2B]">{m.assignedClass || "None"}</td>
+                          <td className="py-2.5 px-4 text-center">
+                            <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${
+                              m.status === "Inactive" 
+                                ? "bg-red-50 text-red-700 border-red-200" 
+                                : "bg-green-50 text-green-700 border-green-200"
+                            }`}>
+                              {m.status || "Active"}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-4 text-center">
+                            <div className="flex justify-center space-x-1.5">
+                              <button 
+                                onClick={() => { setSelectedItem(m); setActiveModal('viewMentor'); }} 
+                                title="View Details"
+                                className="p-1 text-[#214C55] hover:bg-[#214C55]/10 border border-[#214C55]/20 flex items-center justify-center animate-fade-in cursor-pointer"
+                              >
+                                <Eye size={13} />
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedItem(m); setActiveModal('editMentor'); }} 
+                                title="Edit Mentor"
+                                className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center cursor-pointer"
+                              >
+                                <Edit2 size={13} />
+                              </button>
+                              <button 
+                                onClick={() => { setSelectedItem(m); setActiveModal('confirmRemoveMentor'); }} 
+                                title="Remove Mentor"
+                                className="p-1 text-red-650 hover:bg-red-50 border border-red-200 flex items-center justify-center animate-fade-in cursor-pointer"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
+
+              {/* Pagination Controls */}
+              {!mentorsLoading && !mentorsError && mentors.length > 0 && (
+                <div className="flex justify-between items-center pt-4 border-t border-[#E5E5E5] text-xs font-bold text-[#214C55]">
+                  <div>
+                    Showing {mentors.length > 0 ? (mentorsPage - 1) * mentorsLimit + 1 : 0} to{" "}
+                    {Math.min(mentorsPage * mentorsLimit, mentorsTotal)} of {mentorsTotal} mentors
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      disabled={mentorsPage <= 1}
+                      onClick={() => setMentorsPage(prev => Math.max(1, prev - 1))}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      disabled={mentorsPage * mentorsLimit >= mentorsTotal}
+                      onClick={() => setMentorsPage(prev => prev + 1)}
+                      className="px-3 py-1.5 border border-[#D1D5DB] bg-white hover:bg-[#F7F7F7] disabled:opacity-50 disabled:cursor-not-allowed text-[#214C55] rounded-none cursor-pointer"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

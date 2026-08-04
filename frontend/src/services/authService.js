@@ -53,6 +53,8 @@ export const authService = {
       const response = await api.post("/auth/login", {
         email: identifier,
         password,
+      }, {
+        timeout: 120000
       });
       return response.data;
     } catch (error) {

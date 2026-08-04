@@ -1,33 +1,53 @@
 import api from "./api";
 
-export const getAdminStudents = async () => {
+export const getAdminCounts = async () => {
+  const response = await api.get("/admin/counts");
+  return response.data;
+};
+
+export const getAdminStudents = async (page, limit, search) => {
+  const params = {};
+  if (page !== undefined) params.page = page;
+  if (limit !== undefined) params.limit = limit;
+  if (search !== undefined) params.search = search;
+  
   const response = await api.get("/admin/students", {
+    params,
     timeout: 120000
   });
-  const data = response.data;
-  return Array.isArray(data) ? data : data.items || data.data || data.students || [];
+  return response.data;
 };
 
-export const getAdminFaculty = async () => {
+export const getAdminFaculty = async (page, limit, search) => {
+  const params = {};
+  if (page !== undefined) params.page = page;
+  if (limit !== undefined) params.limit = limit;
+  if (search !== undefined) params.search = search;
+
   const response = await api.get("/admin/faculty", {
+    params,
     timeout: 120000
   });
-  const data = response.data;
-  return Array.isArray(data) ? data : data.items || data.data || data.faculty || [];
+  return response.data;
 };
 
-export const getAdminMentors = async () => {
+export const getAdminMentors = async (page, limit, search) => {
+  const params = {};
+  if (page !== undefined) params.page = page;
+  if (limit !== undefined) params.limit = limit;
+  if (search !== undefined) params.search = search;
+
   const response = await api.get("/admin/mentors", {
+    params,
     timeout: 120000
   });
-  const data = response.data;
-  return Array.isArray(data) ? data : data.items || data.data || data.mentors || [];
+  return response.data;
 };
 
 export const getAdminUsers = async () => {
   const response = await api.get("/admin/users", {
     timeout: 120000
   });
-  const data = response.data;
-  return Array.isArray(data) ? data : data.users || data.data || [];
+  return response.data;
 };
+

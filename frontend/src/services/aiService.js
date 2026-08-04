@@ -4,7 +4,7 @@ import { mockStudents } from "../data/mockStudents";
 export const aiService = {
   generateAiSummary: async (registerNo) => {
     try {
-      const response = await api.post("/ai/generate-summary", { register_no: registerNo });
+      const response = await api.post("/ai/generate-summary", { register_no: registerNo }, { timeout: 120000 });
       return response.data;
     } catch (error) {
       console.warn(`AI Generate Summary API failed for student ${registerNo}. Generating mock summary:`, error.message);
