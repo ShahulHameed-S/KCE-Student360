@@ -230,11 +230,80 @@ export const PortfolioPage = () => {
     }
   };
 
-  // Safe variables based on Data Priority Rules
+  // Safe customization extraction
+  const customization = portfolio?.portfolioCustomization || portfolio?.portfolio_customization || {};
+  const customHero = customization?.hero || {};
+  const customSkills = customization?.skills || {};
+  
+  const customLinks = {
+    github: customization?.links?.github || customization?.githubUrl || customization?.github_url || "",
+    linkedin: customization?.links?.linkedin || customization?.linkedinUrl || customization?.linkedin_url || "",
+    leetcode: customization?.links?.leetcode || "",
+    hackerrank: customization?.links?.hackerrank || "",
+    website: customization?.links?.website || "",
+    resume: customization?.links?.resume || ""
+  };
+
+  const customSections = {
+    about: customization?.sections?.about || {},
+    performance: customization?.sections?.performance || {},
+    resume: customization?.sections?.resume || {},
+    projects: customization?.sections?.projects || {},
+    certifications: customization?.sections?.certifications || {},
+    achievements: customization?.sections?.achievements || {},
+    contact: customization?.sections?.contact || {}
+  };
+
+  const customMusic = {
+    visible: customization?.music?.visible !== undefined ? customization.music.visible : true,
+    title: customization?.music?.title || "Interstellar Theme",
+    artist: customization?.music?.artist || "Hans Zimmer — Stellar Mix"
+  };
+
+  const categorizedSkills = {
+    technical: Array.isArray(customSkills?.technical) ? customSkills.technical : [],
+    programming: Array.isArray(customSkills?.programming) ? customSkills.programming : [],
+    frameworks: Array.isArray(customSkills?.frameworks) ? customSkills.frameworks : [],
+    databases: Array.isArray(customSkills?.databases) ? customSkills.databases : [],
+    aiMl: Array.isArray(customSkills?.aiMl) ? customSkills.aiMl : [],
+    softSkills: Array.isArray(customSkills?.softSkills) ? customSkills.softSkills : [],
+    areasOfInterest: Array.isArray(customSkills?.areasOfInterest) ? customSkills.areasOfInterest : []
+  };
+
+  const categorizedSkillsList = [
+    { name: "Technical Skills", list: categorizedSkills.technical },
+    { name: "Programming Languages", list: categorizedSkills.programming },
+    { name: "Frameworks & Libraries", list: categorizedSkills.frameworks },
+    { name: "Databases", list: categorizedSkills.databases },
+    { name: "AI/ML & DS", list: categorizedSkills.aiMl },
+    { name: "Soft Skills", list: categorizedSkills.softSkills },
+    { name: "Areas of Interest", list: categorizedSkills.areasOfInterest }
+  ].filter(cat => Array.isArray(cat.list) && cat.list.length > 0);
+
+  const flatSkills = Array.isArray(portfolio?.skills) 
+    ? portfolio.skills 
+    : Array.isArray(customization?.skills) 
+    ? customization.skills 
+    : [];
+
+  const resumeSkills = portfolio.resume?.keySkills || portfolio.resume?.key_skills || [];
+  const defaultSkills = ["Python", "Java", "React", "FastAPI", "PostgreSQL", "Machine Learning", "DSA", "Full Stack"];
+
+  const skillsList =
+    flatSkills.length > 0
+      ? flatSkills
+      : resumeSkills.length > 0
+      ? resumeSkills
+      : defaultSkills;
+
+  const displayName = customHero.displayName || portfolio?.name || "Student";
+  const welcomeText = customHero.welcomeText || "WELCOME TO MY PORTFOLIO";
+  const initials = customHero.avatarInitials || (displayName ? displayName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "ST");
+
   const headline =
+    customHero.headline ||
     portfolio.title ||
-    portfolio.portfolioCustomization?.headline ||
-    portfolio.portfolio_customization?.headline ||
+    customization.headline ||
     portfolio.resume?.primaryRole ||
     portfolio.resume?.primary_role ||
     portfolio.resume?.preferredRole ||
@@ -244,9 +313,9 @@ export const PortfolioPage = () => {
     "AI & DS Student | Java Full Stack Developer";
 
   const aboutText =
+    customHero.intro ||
     portfolio.about ||
-    portfolio.portfolioCustomization?.about_me ||
-    portfolio.portfolio_customization?.about_me ||
+    customization.about_me ||
     portfolio.resume?.careerObjective ||
     portfolio.resume?.career_objective ||
     "I am an Artificial Intelligence and Data Science student passionate about building AI-powered full stack applications, solving real-world problems, and improving through verified academic and technical performance.";
@@ -254,23 +323,19 @@ export const PortfolioPage = () => {
   const careerObjective =
     portfolio.career_objective ||
     portfolio.careerObjective ||
-    portfolio.portfolioCustomization?.career_objective ||
-    portfolio.portfolio_customization?.career_objective ||
+    customization.career_objective ||
     portfolio.resume?.careerObjective ||
     portfolio.resume?.career_objective ||
     "To secure a challenging role in an industry-leading organization, leveraging my analytical competencies in Artificial Intelligence, Full-Stack Software Engineering, and problem-solving to design and deploy real-world product solutions.";
-  
-  // Combine skills safely
-  const customizationSkills = portfolio.skills || portfolio.portfolioCustomization?.skills || portfolio.portfolio_customization?.skills || [];
-  const resumeSkills = portfolio.resume?.keySkills || portfolio.resume?.key_skills || [];
-  const defaultSkills = ["Python", "Java", "React", "FastAPI", "PostgreSQL", "Machine Learning", "DSA", "Full Stack"];
 
-  const skillsList =
-    customizationSkills.length > 0
-      ? customizationSkills
-      : resumeSkills.length > 0
-      ? resumeSkills
-      : defaultSkills;
+  const showCgpa = customization?.showCgpa !== false;
+  const customCgpa = customization?.cgpa;
+  let cgpaText = "CGPA Not Added";
+  if (customCgpa && customCgpa.trim()) {
+    cgpaText = `${customCgpa} CGPA`;
+  } else if (portfolio.overall_score) {
+    cgpaText = `${safeFixed(portfolio.overall_score / 10, 2)} CGPA`;
+  }
 
   // Calculate assessment timeline items
   const studentPerformance = portfolio.performance?.score_history || portfolio.performance?.scoreHistory || mockPerformance[registerNo] || [];
@@ -337,19 +402,27 @@ export const PortfolioPage = () => {
     role: isOwn ? "student" : null
   });
 
-  const initials = portfolio?.name ? portfolio.name.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "ST";
-
   const hasProjects = portfolio.visibility?.showProjects !== false;
   const hasAchievements = portfolio.visibility?.showAchievements !== false || portfolio.visibility?.showCertifications !== false;
   const hasContact = portfolio.visibility?.showContactLinks !== false;
 
+  const visibleSections = {
+    about: customSections.about?.visible !== false,
+    performance: customSections.performance?.visible !== false,
+    resume: customSections.resume?.visible !== false && isResumeVisible,
+    projects: customSections.projects?.visible !== false && hasProjects,
+    certifications: customSections.certifications?.visible !== false,
+    achievements: customSections.achievements?.visible !== false && hasAchievements,
+    contact: customSections.contact?.visible !== false && hasContact
+  };
+
   const tabs = [
-    { id: "about", label: "About" },
-    { id: "performance", label: "Performance" },
-    { id: "resume", label: "Resume" },
-    ...(hasProjects ? [{ id: "projects", label: "Projects" }] : []),
-    ...(hasAchievements ? [{ id: "achievements", label: "Achievements" }] : []),
-    ...(hasContact ? [{ id: "contact", label: "Contact" }] : [])
+    ...(visibleSections.about ? [{ id: "about", label: customSections.about?.title || "About" }] : []),
+    ...(visibleSections.performance ? [{ id: "performance", label: customSections.performance?.title || "Performance" }] : []),
+    ...(visibleSections.resume ? [{ id: "resume", label: customSections.resume?.title || "Resume" }] : []),
+    ...(visibleSections.projects ? [{ id: "projects", label: customSections.projects?.title || "Projects" }] : []),
+    ...(visibleSections.achievements ? [{ id: "achievements", label: customSections.achievements?.title || "Achievements" }] : []),
+    ...(visibleSections.contact ? [{ id: "contact", label: customSections.contact?.title || "Contact" }] : [])
   ];
 
   const getSkillBadgeStyle = (skill) => {
@@ -681,9 +754,9 @@ export const PortfolioPage = () => {
           <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-[#71717A] text-left">
             Core Developer Tech Stack
           </h3>
-          {categorizedSkills.length > 0 ? (
+          {categorizedSkillsList.length > 0 ? (
             <div className="space-y-3">
-              {categorizedSkills.map((cat) => (
+              {categorizedSkillsList.map((cat) => (
                 <div key={cat.name} className="text-left space-y-1.5">
                   <span className="text-[9px] font-bold text-[#A855F7] uppercase tracking-wider block">{cat.name}</span>
                   <div className="flex flex-wrap gap-2">
