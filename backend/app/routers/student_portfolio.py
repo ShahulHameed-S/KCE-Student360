@@ -111,7 +111,7 @@ async def get_my_portfolio_customization(
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student profile not found."
+            detail="Student profile not found for current user"
         )
 
     cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
@@ -308,7 +308,7 @@ async def update_my_portfolio_customization(
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student profile not found."
+            detail="Student profile not found for current user"
         )
 
     cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
@@ -360,10 +360,10 @@ async def update_my_portfolio_customization(
 
     # Temporary safe debug in development
     import os
-    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or True:
+    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or os.environ.get("ENVIRONMENT") == "development":
         cgpa_received = payload.hero.cgpa if (payload.hero and payload.hero.cgpa is not None) else "Not Sent"
         cgpa_stored = existing_json.get("hero", {}).get("cgpa", "None")
-        print(f"[DEBUG] CGPA Received: {cgpa_received} | CGPA Stored in JSON: {cgpa_stored}")
+        print(f"[DEBUG PUT] current_user.id: {current_user.id} | resolved student.id: {student.id} | resolved student.register_no: {student.register_no} | incoming hero.cgpa: {cgpa_received} | saved hero.cgpa: {cgpa_stored}")
 
     # 4. Sync flat database columns for backward compatibility with older components
     if payload.hero:

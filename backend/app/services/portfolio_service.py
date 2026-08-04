@@ -56,7 +56,7 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
 
     # Safe debug in development logging
     import os
-    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or True:
+    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or os.environ.get("ENVIRONMENT") == "development":
         has_cust = custom_obj is not None
         cust_student_id = custom_obj.student_id if has_cust else "None"
         cgpa_in_json = "None"

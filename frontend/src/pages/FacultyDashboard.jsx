@@ -1028,6 +1028,14 @@ const MyResumeSection = ({ registerNo, resumeData, setResumeData, message, setMe
   );
 };
 
+const getTextValue = (value) => {
+  if (typeof value === "string") return value;
+  if (value?.content) return value.content;
+  if (value?.about_me) return value.about_me;
+  if (value?.text) return value.text;
+  return "";
+};
+
 export const FacultyDashboard = () => {
   const { user } = useAuth();
   const location = useLocation();
@@ -1541,7 +1549,7 @@ export const FacultyDashboard = () => {
             weakest_domain: perfData?.weakest_domain ?? perfData?.weakestDomain ?? profile.weakest_domain,
             domain_scores: perfData?.domain_scores ?? perfData?.domainScores ?? profile.domain_scores,
             headline: customization.headline || profile.headline || "",
-            about_me: customization.about_me || profile.about || "",
+            about_me: getTextValue(customization.about_me) || getTextValue(profile.about) || profile.about_me || "",
             career_objective: customization.career_objective || profile.career_objective || "",
             github_url: customization.github_url || profile.contact?.github || "",
             linkedin_url: customization.linkedin_url || profile.contact?.linkedin || "",
@@ -1578,7 +1586,7 @@ export const FacultyDashboard = () => {
           setCustomizationForm({
             // Legacy fallbacks
             headline: customization.headline || mergedProfile.headline || "",
-            about_me: customization.about_me || mergedProfile.about_me || "",
+            about_me: getTextValue(customization.about_me || mergedProfile.about_me),
             career_objective: customization.career_objective || mergedProfile.career_objective || "",
             skills: Array.isArray(customization.skills)
               ? customization.skills.join(", ")
@@ -1607,7 +1615,7 @@ export const FacultyDashboard = () => {
               welcomeText: customization.hero?.welcomeText || "WELCOME TO MY PORTFOLIO",
               displayName: customization.hero?.displayName || mergedProfile.name || "",
               headline: customization.hero?.headline || customization.headline || mergedProfile.headline || "",
-              intro: customization.hero?.intro || customization.about_me || mergedProfile.about_me || "",
+              intro: getTextValue(customization.hero?.intro || customization.about_me || mergedProfile.about_me),
               avatarInitials: customization.hero?.avatarInitials || "",
               location: customization.hero?.location || customization.location || mergedProfile.location || "",
               cgpa: customization.hero?.cgpa !== undefined ? customization.hero.cgpa : (mergedProfile.cgpa !== undefined ? String(mergedProfile.cgpa) : ""),
@@ -2481,18 +2489,22 @@ export const FacultyDashboard = () => {
           }
 
           const res = await portfolioCustomizationService.saveStudentPortfolioCustomization(payload);
-          const currentRegisterNo = user?.register_no || user?.registerNo || activeProfile?.register_no || "22AD001";
-          localStorage.setItem(`student360_portfolio_customization_${currentRegisterNo}`, JSON.stringify(payload));
-          
-          setCustomizationMessage(res.message || "Portfolio updated successfully");
-          setStudentProfile(prev => ({
-            ...prev,
-            name: customizationForm.hero.displayName,
-            headline: customizationForm.hero.headline,
-            about_me: customizationForm.hero.intro,
-            location: customizationForm.hero.location,
-            cgpa: customizationForm.hero.cgpa ? parseFloat(customizationForm.hero.cgpa) : prev.cgpa
-          }));
+          if (res && res.success) {
+            const currentRegisterNo = user?.register_no || user?.registerNo || activeProfile?.register_no || "22AD001";
+            localStorage.setItem(`student360_portfolio_customization_${currentRegisterNo}`, JSON.stringify(payload));
+            
+            setCustomizationMessage(res.message || "Portfolio customization saved successfully");
+            setStudentProfile(prev => ({
+              ...prev,
+              name: customizationForm.hero.displayName,
+              headline: customizationForm.hero.headline,
+              about_me: customizationForm.hero.intro,
+              location: customizationForm.hero.location,
+              cgpa: customizationForm.hero.cgpa ? parseFloat(customizationForm.hero.cgpa) : prev.cgpa
+            }));
+          } else {
+            setCustomizationMessage(res?.message || "Failed to save portfolio customization.");
+          }
         } else {
           const res = await portfolioCustomizationService.savePortfolioCustomization(activeProfile.register_no, {
             headline: customizationForm.headline,

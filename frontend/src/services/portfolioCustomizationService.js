@@ -116,9 +116,21 @@ export const portfolioCustomizationService = {
 
   saveStudentPortfolioCustomization: async (data) => {
     try {
-      const response = await api.put(`/student/portfolio/customization`, data);
+      const path = `/student/portfolio/customization`;
+      if (process.env.NODE_ENV === "development" || import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+        const fullUrl = (api.defaults.baseURL || "") + path;
+        console.log(`[DEBUG] Save API URL: ${fullUrl}`);
+        console.log(`[DEBUG] Save payload.hero.cgpa: ${data?.hero?.cgpa}`);
+      }
+      const response = await api.put(path, data);
+      if (process.env.NODE_ENV === "development" || import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+        console.log(`[DEBUG] Save response status: ${response.status}`);
+      }
       return response.data;
     } catch (error) {
+      if (process.env.NODE_ENV === "development" || import.meta.env?.DEV || import.meta.env?.MODE === "development") {
+        console.log(`[DEBUG] Save error status: ${error.response?.status}`);
+      }
       console.error("Error in saveStudentPortfolioCustomization:", error);
       throw error;
     }

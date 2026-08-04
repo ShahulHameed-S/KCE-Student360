@@ -230,6 +230,14 @@ export const PortfolioPage = () => {
     }
   };
 
+  const getTextValue = (value) => {
+    if (typeof value === "string") return value;
+    if (value?.content) return value.content;
+    if (value?.about_me) return value.about_me;
+    if (value?.text) return value.text;
+    return "";
+  };
+
   // Safe customization extraction
   const customizationData =
     portfolio?.portfolioCustomization ||
@@ -291,7 +299,7 @@ export const PortfolioPage = () => {
     welcomeText: hero.welcomeText || customizationData.welcomeText || "WELCOME TO MY PORTFOLIO",
     avatarInitials: hero.avatarInitials || customizationData.avatarInitials || "",
     headline: hero.headline || customizationData.headline || "",
-    intro: hero.intro || customizationData.about_me || customizationData.aboutMe || "",
+    intro: getTextValue(hero.intro || customizationData.about_me || customizationData.aboutMe || ""),
     location: hero.location || customizationData.location || "",
     showEmail: customizationData?.showEmail !== undefined ? customizationData.showEmail : (hero.showEmail !== undefined ? hero.showEmail : true),
     showPhone: customizationData?.showPhone !== undefined ? customizationData.showPhone : (hero.showPhone !== undefined ? hero.showPhone : true),
@@ -359,13 +367,11 @@ export const PortfolioPage = () => {
   const customCgpa =
     hero?.cgpa ||
     customizationData?.customCGPA ||
-    customizationData?.customCgpa ||
     customizationData?.cgpa;
 
   const displayCgpa =
     customCgpa ||
     portfolio?.cgpa ||
-    (portfolio?.overall_score ? safeFixed(portfolio.overall_score / 10, 2) : null) ||
     portfolio?.analytics?.cgpa ||
     "";
 
