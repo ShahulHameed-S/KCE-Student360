@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { leaderboardService } from "../services/leaderboardService";
 import { mockStudents } from "../data/mockStudents";
+import { useAuth } from "../hooks/useAuth";
 import ScoreBadge from "../components/common/ScoreBadge";
 import DomainBadge from "../components/common/DomainBadge";
 import LoadingSpinner from "../components/common/LoadingSpinner";
@@ -9,8 +10,9 @@ import { Trophy, ShieldAlert, Award, ExternalLink, UserSquare2, Sparkles } from 
 
 import { resolveImageUrl, getStudentImageUrl } from "../utils/imageUtils";
 
-
 export const LeaderboardPage = () => {
+  const { user } = useAuth();
+  const [demoMode, setDemoMode] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState("Overall");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -44,13 +46,30 @@ export const LeaderboardPage = () => {
       try {
         setLoading(true);
         setError("");
-        let data = [];
+        let response;
         if (selectedDomain === "Overall") {
-          data = await leaderboardService.getOverallLeaderboard();
+          response = await leaderboardService.getOverallLeaderboard();
         } else {
-          data = await leaderboardService.getLeaderboardByDomain(selectedDomain);
+          response = await leaderboardService.getLeaderboardByDomain(selectedDomain);
         }
-        console.log("Leaderboard API data:", data);
+
+        // Safe array normalization
+        const data = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.items)
+            ? response.items
+            : Array.isArray(response?.students)
+              ? response.students
+              : Array.isArray(response?.leaderboard)
+                ? response.leaderboard
+                : [];
+
+        if (!import.meta.env.PROD) {
+          console.log("Leaderboard role:", user?.role);
+          console.log("Leaderboard domain:", selectedDomain);
+          console.log("Leaderboard response count:", data.length);
+        }
+
         setLeaderboardData(data);
       } catch (err) {
         console.error("Leaderboard fetch error:", err);
@@ -61,7 +80,7 @@ export const LeaderboardPage = () => {
     };
 
     fetchLeaderboard();
-  }, [selectedDomain]);
+  }, [selectedDomain, user]);
 
   // Helper to compute initials
   const getInitials = (name) => {
@@ -102,41 +121,46 @@ export const LeaderboardPage = () => {
 
   const { sortedStudents, podiumStudents, remainingStudents } = React.useMemo(() => {
     let sorted = [];
-    if (leaderboardData && leaderboardData.length > 0) {
+    if (demoMode) {
+      sorted = [...mockStudents].map(s => ({
+        ...s,
+        register_no: s.register_no ?? s.registerNo,
+        registerNo: s.register_no ?? s.registerNo,
+        profile_image: getStudentImageUrl(s),
+        profileImage: getStudentImageUrl(s),
+        score: getScore(s, selectedDomain)
+      })).sort((a, b) => b.score - a.score);
+      sorted = sorted.map((s, idx) => ({ ...s, rank: idx + 1 }));
+    } else if (leaderboardData && leaderboardData.length > 0) {
       sorted = leaderboardData.map((item) => {
         const scoreVal = selectedDomain === "Overall" 
-          ? (item.overall_score ?? item.overallScore ?? 0)
-          : (item.domain_score ?? item.domainScore ?? 0);
+          ? (item.overall_score ?? item.overallScore)
+          : (item.domain_score ?? item.domainScore);
         return {
           id: item.id,
           name: item.name,
           register_no: item.register_no ?? item.registerNo,
           registerNo: item.register_no ?? item.registerNo,
-          overall_score: item.overall_score ?? item.overallScore ?? 0,
-          strongest_domain: item.strongest_domain ?? item.strongestDomain ?? "Coding",
-          weakest_domain: item.weakest_domain ?? item.weakestDomain ?? "DBMS",
+          department: item.department,
+          year: item.year,
+          section: item.section,
+          batch: item.batch,
+          overall_score: item.overall_score ?? item.overallScore,
+          strongest_domain: item.strongest_domain ?? item.strongestDomain ?? "Not added",
+          weakest_domain: item.weakest_domain ?? item.weakestDomain ?? "Not added",
           profile_image: getStudentImageUrl(item),
           profileImage: getStudentImageUrl(item),
           score: scoreVal,
           rank: item.rank
         };
       });
-    } else {
-      if (import.meta.env.PROD) {
-        sorted = [];
-      } else {
-        sorted = [...mockStudents].map(s => ({
-          ...s,
-          profile_image: getStudentImageUrl(s),
-          profileImage: getStudentImageUrl(s),
-          score: getScore(s, selectedDomain)
-        })).sort((a, b) => b.score - a.score);
-        sorted = sorted.map((s, idx) => ({ ...s, rank: idx + 1 }));
-      }
     }
 
     const podium = [];
+    const rank1 = sorted.find(s => s.rank === 1);
     const rank2 = sorted.find(s => s.rank === 2);
+    const rank3 = sorted.find(s => s.rank === 3);
+
     if (rank2) {
       podium.push({
         ...rank2,
@@ -146,7 +170,6 @@ export const LeaderboardPage = () => {
         badgeColor: "bg-slate-100 text-slate-700 border-slate-300"
       });
     }
-    const rank1 = sorted.find(s => s.rank === 1);
     if (rank1) {
       podium.push({
         ...rank1,
@@ -156,7 +179,6 @@ export const LeaderboardPage = () => {
         badgeColor: "bg-amber-100 text-[#D97706] border-amber-300"
       });
     }
-    const rank3 = sorted.find(s => s.rank === 3);
     if (rank3) {
       podium.push({
         ...rank3,
@@ -167,10 +189,11 @@ export const LeaderboardPage = () => {
       });
     }
 
-    const remaining = sorted.filter(s => s.rank > 3);
+    const podiumIds = new Set(podium.map(s => s.id || s.register_no));
+    const remaining = sorted.filter(s => !podiumIds.has(s.id || s.register_no));
 
     return { sortedStudents: sorted, podiumStudents: podium, remainingStudents: remaining };
-  }, [selectedDomain, leaderboardData]);
+  }, [selectedDomain, leaderboardData, demoMode]);
 
   const orderClasses = {
     1: "order-1 md:order-2",
@@ -216,6 +239,30 @@ export const LeaderboardPage = () => {
         </div>
       </div>
 
+      {/* Mode Status Banner and Toggle Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-white border border-[#D1D5DB] rounded-none shadow-none">
+        <div className="flex items-center space-x-2">
+          <div className={`w-2.5 h-2.5 rounded-full ${demoMode ? "bg-amber-500 animate-pulse" : "bg-[#C76F2B]"}`} />
+          <span className="text-xs font-black uppercase tracking-wider text-[#214C55]">
+            {demoMode 
+              ? "Demo Mode Enabled — Showing sample leaderboard for review explanation" 
+              : "Live Data Mode — Showing uploaded students from database"}
+          </span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <label className="text-xs font-bold text-[#6B7280] cursor-pointer select-none" htmlFor="demo-toggle-lb">
+            Demo Mode (Review)
+          </label>
+          <input
+            id="demo-toggle-lb"
+            type="checkbox"
+            checked={demoMode}
+            onChange={(e) => setDemoMode(e.target.checked)}
+            className="w-4 h-4 text-[#C76F2B] border-[#D1D5DB] focus:ring-[#C76F2B] rounded-none cursor-pointer"
+          />
+        </div>
+      </div>
+
       {loading ? (
         <LoadingSpinner size="lg" text={`Calculating ${selectedDomain} ranking statistics...`} />
       ) : error ? (
@@ -226,152 +273,185 @@ export const LeaderboardPage = () => {
             <p className="text-xs mt-0.5">{error}</p>
           </div>
         </div>
+      ) : sortedStudents.length === 0 ? (
+        <div className="bg-white border border-[#D1D5DB] p-8 text-center max-w-lg mx-auto mt-6">
+          <ShieldAlert className="w-12 h-12 text-[#C76F2B] mx-auto mb-3" />
+          <h3 className="text-base font-extrabold text-[#214C55] uppercase tracking-wider">
+            {user?.role === "mentor" ? "No students assigned yet" : "No leaderboard data available yet"}
+          </h3>
+          <p className="text-xs text-[#6B7280] font-semibold mt-1">
+            {user?.role === "mentor"
+              ? "You do not have any students assigned to your classes yet."
+              : "No performance records were found for the selected filter criteria."}
+          </p>
+        </div>
       ) : (
         <>
           {/* Podium section */}
-          <div className="bg-white border border-[#D1D5DB] p-6 rounded-none space-y-6">
-            <div className="text-center border-b border-[#E5E5E5] pb-4">
-              <h3 className="text-sm font-black text-[#214C55] uppercase tracking-wider flex items-center justify-center space-x-2">
-                <Sparkles size={16} className="text-[#C76F2B]" />
-                <span>Top performers - {selectedDomain}</span>
-                <Sparkles size={16} className="text-[#C76F2B]" />
-              </h3>
-              <p className="text-[11px] text-[#6B7280] font-semibold mt-0.5">Click a top student to view their details or open their portfolio card.</p>
-            </div>
+          {podiumStudents.length > 0 && (
+            <div className="bg-white border border-[#D1D5DB] p-6 rounded-none space-y-6">
+              <div className="text-center border-b border-[#E5E5E5] pb-4">
+                <h3 className="text-sm font-black text-[#214C55] uppercase tracking-wider flex items-center justify-center space-x-2">
+                  <Sparkles size={16} className="text-[#C76F2B]" />
+                  <span>Top performers - {selectedDomain}</span>
+                  <Sparkles size={16} className="text-[#C76F2B]" />
+                </h3>
+                <p className="text-[11px] text-[#6B7280] font-semibold mt-0.5">Click a top student to view their details or open their portfolio card.</p>
+              </div>
 
-            <div className="flex flex-col md:flex-row items-center md:items-end justify-center gap-6 pt-4 max-w-4xl mx-auto">
-              {podiumStudents.map((student) => {
-                const isError = imgErrors[student.register_no];
-                const showInitials = isError || !student.profile_image;
+              <div className="flex flex-col md:flex-row items-center md:items-end justify-center gap-6 pt-4 max-w-4xl mx-auto">
+                {podiumStudents.map((student) => {
+                  const isError = imgErrors[student.register_no];
+                  const showInitials = isError || !student.profile_image;
 
-                return (
-                  <div
-                    key={student.register_no}
-                    className={`flex flex-col items-center justify-end ${orderClasses[student.rank]} w-full max-w-[220px]`}
-                  >
-                    {/* Student Info Card */}
-                    <div className="bg-white border border-[#D1D5DB] p-4 w-full flex flex-col items-center relative z-10 shadow-sm space-y-2 mb-[-1px]">
-                      {/* Image & Rank badge wrapper */}
-                      <div className="relative">
-                        {showInitials ? (
-                          <div
+                  return (
+                    <div
+                      key={student.register_no}
+                      className={`flex flex-col items-center justify-end ${orderClasses[student.rank]} w-full max-w-[220px]`}
+                    >
+                      {/* Student Info Card */}
+                      <div className="bg-white border border-[#D1D5DB] p-4 w-full flex flex-col items-center relative z-10 shadow-sm space-y-2 mb-[-1px]">
+                        {/* Image & Rank badge wrapper */}
+                        <div className="relative">
+                          {showInitials ? (
+                            <div
+                              onClick={() => setActiveStudentPopover(student)}
+                              className={`rounded-full bg-[#214C55] text-white flex items-center justify-center text-lg font-black border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
+                                student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
+                              }`}
+                            >
+                              {getInitials(student.name)}
+                            </div>
+                          ) : (
+                            <img
+                              src={student.profile_image}
+                              alt={student.name}
+                              onError={() => handleImgError(student.register_no)}
+                              onClick={() => setActiveStudentPopover(student)}
+                              className={`rounded-full object-cover border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
+                                student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
+                              }`}
+                            />
+                          )}
+                          {/* Gold, Silver, Bronze Badge absolute positioned */}
+                          <span className={`absolute bottom-0 right-0 inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black border shadow-md ${student.badgeColor}`}>
+                            {student.rank}
+                          </span>
+                        </div>
+
+                        {/* Name / RegNo / Score */}
+                        <div className="text-center space-y-0.5">
+                          <h4
                             onClick={() => setActiveStudentPopover(student)}
-                            className={`rounded-full bg-[#214C55] text-white flex items-center justify-center text-lg font-black border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
-                              student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
-                            }`}
+                            className="text-xs font-black text-[#214C55] uppercase tracking-wide hover:underline cursor-pointer"
                           >
-                            {getInitials(student.name)}
-                          </div>
-                        ) : (
-                          <img
-                            src={student.profile_image}
-                            alt={student.name}
-                            onError={() => handleImgError(student.register_no)}
-                            onClick={() => setActiveStudentPopover(student)}
-                            className={`rounded-full object-cover border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
-                              student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
-                            }`}
-                          />
-                        )}
-                        {/* Gold, Silver, Bronze Badge absolute positioned */}
-                        <span className={`absolute bottom-0 right-0 inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-black border shadow-md ${student.badgeColor}`}>
-                          {student.rank}
-                        </span>
+                            {student.name}
+                          </h4>
+                          <p className="text-[9px] text-[#6B7280] font-bold uppercase">{student.register_no}</p>
+                        </div>
+
+                        <div className="flex flex-col items-center space-y-1 pt-1">
+                          <ScoreBadge score={student.score} />
+                          <DomainBadge domain={student.strongest_domain} />
+                          <span className="text-[9px] font-black uppercase text-[#C76F2B] mt-1 bg-orange-50 px-2 py-0.5 border border-orange-200">
+                            {rankTitles[student.rank]}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Name / RegNo / Score */}
-                      <div className="text-center space-y-0.5">
-                        <h4
-                          onClick={() => setActiveStudentPopover(student)}
-                          className="text-xs font-black text-[#214C55] uppercase tracking-wide hover:underline cursor-pointer"
-                        >
-                          {student.name}
-                        </h4>
-                        <p className="text-[9px] text-[#6B7280] font-bold uppercase">{student.register_no}</p>
-                      </div>
-
-                      <div className="flex flex-col items-center space-y-1 pt-1">
-                        <ScoreBadge score={student.score} />
-                        <DomainBadge domain={student.strongest_domain} />
-                        <span className="text-[9px] font-black uppercase text-[#C76F2B] mt-1 bg-orange-50 px-2 py-0.5 border border-orange-200">
-                          {rankTitles[student.rank]}
-                        </span>
+                      {/* Pedestal block */}
+                      <div className={`w-full bg-gradient-to-b ${student.pedestalColor} ${student.pedestalHeight} border border-[#D1D5DB] flex flex-col items-center justify-center shadow-inner`}>
+                        <span className="text-3xl font-black tracking-tighter">{student.rank === 1 ? "1st" : student.rank === 2 ? "2nd" : "3rd"}</span>
+                        {student.rank === 1 && <Trophy size={18} className="mt-0.5" />}
                       </div>
                     </div>
-
-                    {/* Pedestal block */}
-                    <div className={`w-full bg-gradient-to-b ${student.pedestalColor} ${student.pedestalHeight} border border-[#D1D5DB] flex flex-col items-center justify-center shadow-inner`}>
-                      <span className="text-3xl font-black tracking-tighter">{student.rank === 1 ? "1st" : student.rank === 2 ? "2nd" : "3rd"}</span>
-                      {student.rank === 1 && <Trophy size={18} className="mt-0.5" />}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Remaining students table */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#214C55]">Other Ranked Students</h3>
-            <div className="bg-white rounded-none border border-[#D1D5DB] shadow-none overflow-hidden animate-fade-in">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse bg-white">
-                  <thead>
-                    <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-xs font-extrabold text-[#214C55] uppercase tracking-wider">
-                      <th className="px-6 py-4 text-center w-20">Rank</th>
-                      <th className="px-6 py-4">Register No</th>
-                      <th className="px-6 py-4">Name</th>
-                      <th className="px-6 py-4 text-center">
-                        {normalizeDomain(selectedDomain) === "Overall" ? "Overall Score" : `${normalizeDomain(selectedDomain)} Score`}
-                      </th>
-                      {normalizeDomain(selectedDomain) !== "Overall" && (
-                        <th className="px-6 py-4 text-center">Batch Avg Score</th>
-                      )}
-                      <th className="px-6 py-4">Strongest Domain</th>
-                      <th className="px-6 py-4">Weakest Domain</th>
-                      <th className="px-6 py-4 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                    {remainingStudents.map((student) => (
-                      <tr key={student.id} className="hover:bg-[#F7F7F7] transition-colors">
-                        <td className="px-6 py-3 whitespace-nowrap text-center text-[#6B7280] font-bold">
-                          {student.rank}
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap font-bold text-[#6B7280] text-xs uppercase">
-                          {student.register_no}
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap font-bold text-[#214C55]">
-                          <div className="flex items-center space-x-3">
-                            {imgErrors[student.register_no] || !student.profile_image ? (
-                              <div className="w-8 h-8 rounded-full bg-[#214C55] text-white flex items-center justify-center text-[10px] font-black border border-[#D1D5DB]">
-                                {getInitials(student.name)}
-                              </div>
-                            ) : (
-                              <img
-                                src={student.profile_image}
-                                alt={student.name}
-                                onError={() => handleImgError(student.register_no)}
-                                className="w-8 h-8 rounded-full object-cover border border-[#D1D5DB]"
-                              />
-                            )}
-                            <span>{student.name}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-center">
-                          <ScoreBadge score={student.score} />
-                        </td>
+          {remainingStudents.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-[#214C55]">
+                {podiumStudents.length > 0 ? "Other Ranked Students" : "Student Rankings Directory"}
+              </h3>
+              <div className="bg-white rounded-none border border-[#D1D5DB] shadow-none overflow-hidden animate-fade-in">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-xs font-extrabold text-[#214C55] uppercase tracking-wider">
+                        <th className="px-6 py-4 text-center w-20">Rank</th>
+                        <th className="px-6 py-4">Register No</th>
+                        <th className="px-6 py-4">Name</th>
+                        <th className="px-6 py-4 text-center">
+                          {normalizeDomain(selectedDomain) === "Overall" ? "Overall Score" : `${normalizeDomain(selectedDomain)} Score`}
+                        </th>
                         {normalizeDomain(selectedDomain) !== "Overall" && (
-                          <td className="px-6 py-3 whitespace-nowrap text-center">
-                            <ScoreBadge score={student.overall_score} />
-                          </td>
+                          <th className="px-6 py-4 text-center">Batch Avg Score</th>
                         )}
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <DomainBadge domain={student.strongest_domain} />
-                        </td>
-                        <td className="px-6 py-3 whitespace-nowrap">
-                          <DomainBadge domain={student.weakest_domain} />
-                        </td>
+                        <th className="px-6 py-4">Strongest Domain</th>
+                        <th className="px-6 py-4">Weakest Domain</th>
+                        <th className="px-6 py-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
+                      {remainingStudents.map((student) => (
+                        <tr key={student.id || student.register_no} className="hover:bg-[#F7F7F7] transition-colors">
+                          <td className="px-6 py-3 whitespace-nowrap text-center text-[#6B7280] font-bold">
+                            {student.rank ? `#${student.rank}` : "Not ranked"}
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap font-bold text-[#6B7280] text-xs uppercase">
+                            {student.register_no}
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap font-bold text-[#214C55]">
+                            <div className="flex items-center space-x-3">
+                              {imgErrors[student.register_no] || !student.profile_image ? (
+                                <div className="w-8 h-8 rounded-full bg-[#214C55] text-white flex items-center justify-center text-[10px] font-black border border-[#D1D5DB]">
+                                  {getInitials(student.name)}
+                                </div>
+                              ) : (
+                                <img
+                                  src={student.profile_image}
+                                  alt={student.name}
+                                  onError={() => handleImgError(student.register_no)}
+                                  className="w-8 h-8 rounded-full object-cover border border-[#D1D5DB]"
+                                />
+                              )}
+                              <span>{student.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap text-center">
+                            {student.score !== null && student.score !== undefined && student.score > 0 ? (
+                              <ScoreBadge score={student.score} />
+                            ) : (
+                              <span className="text-[#6B7280] font-bold">Not added</span>
+                            )}
+                          </td>
+                          {normalizeDomain(selectedDomain) !== "Overall" && (
+                            <td className="px-6 py-3 whitespace-nowrap text-center">
+                              {student.overall_score !== null && student.overall_score !== undefined && student.overall_score > 0 ? (
+                                <ScoreBadge score={student.overall_score} />
+                              ) : (
+                                <span className="text-[#6B7280] font-bold">Not added</span>
+                              )}
+                            </td>
+                          )}
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            {student.strongest_domain && student.strongest_domain !== "Not added" ? (
+                              <DomainBadge domain={student.strongest_domain} />
+                            ) : (
+                              <span className="text-[#6B7280] font-bold">Not added</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-3 whitespace-nowrap">
+                            {student.weakest_domain && student.weakest_domain !== "Not added" ? (
+                              <DomainBadge domain={student.weakest_domain} />
+                            ) : (
+                              <span className="text-[#6B7280] font-bold">Not added</span>
+                            )}
+                          </td>
                         <td className="px-6 py-3 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center space-x-2">
                             <Link
@@ -397,8 +477,9 @@ export const LeaderboardPage = () => {
               </div>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </>
+    )}
 
       {/* Popover / Modal Action dialog for Top 3 performers */}
       {activeStudentPopover && (

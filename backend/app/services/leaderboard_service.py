@@ -1,88 +1,197 @@
 from sqlalchemy.orm import Session
 from app.models.student import Student
 from app.models.score import StudentAnalytics
+from app.models.user import User
 from app.utils.domain_utils import normalize_domain
 
-def get_leaderboard_data(db: Session, domain: str = "Overall") -> list:
+def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: User = None) -> list:
     """
     Retrieves ranked student rankings sorted by overall_score or a specific domain score.
-    Returns compatible lists matching camelCase and snake_case properties.
+    Supports mentor role filtering (assigned + class match), demo student filtering (22ad),
+    and formats unscored students safely with null overall_score and "Not added" domains.
     """
-    # 1. Base query
-    query = db.query(Student, StudentAnalytics).join(
-        StudentAnalytics, Student.id == StudentAnalytics.student_id
-    )
+    # 1. Determine student scope
+    target_students = []
+    if current_user and current_user.role == "mentor":
+        from app.routers.mentor import get_assigned_student_ids, normalize_dept, normalize_year, normalize_section
+        from app.models.profile import UserProfile
+        from app.models.student import FacultyProfile
+        import json
+
+        explicit_students = []
+        assigned_student_ids = get_assigned_student_ids(db, current_user.id)
+        if assigned_student_ids:
+            db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+            explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
+
+        class_students = []
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        assigned_dept = None
+        assigned_yr = None
+        assigned_sec = None
+        assigned_batch = None
+        
+        if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+            try:
+                bio_data = json.loads(profile.bio)
+                assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+            except Exception:
+                pass
+
+        if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+            assigned_dept = "AI & DS"
+            assigned_yr = "3"
+            assigned_sec = "A"
+            assigned_batch = "2028"
+
+        if not assigned_dept:
+            fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+            if fp:
+                assigned_dept = fp.department
+
+        if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+            all_db_students = db.query(Student).all()
+            norm_m_dept = normalize_dept(assigned_dept)
+            norm_m_yr = normalize_year(assigned_yr)
+            norm_m_sec = normalize_section(assigned_sec)
+
+            for s in all_db_students:
+                if s.register_no.lower().startswith("22ad"):
+                    continue
+                match = True
+                if norm_m_dept and normalize_dept(s.department) != norm_m_dept:
+                    match = False
+                if norm_m_yr and normalize_year(s.year) != norm_m_yr:
+                    match = False
+                if norm_m_sec and normalize_section(s.section) != norm_m_sec:
+                    match = False
+                if assigned_batch and s.batch and s.batch.strip() != assigned_batch.strip():
+                    match = False
+                if match:
+                    class_students.append(s)
+
+        if explicit_students:
+            target_students = explicit_students
+        else:
+            target_students = class_students
+    else:
+        # Admin, Faculty, or public
+        all_students = db.query(Student).all()
+        target_students = [s for s in all_students if not s.register_no.lower().startswith("22ad")]
+
+    if not target_students:
+        return []
+
+    target_student_ids = [s.id for s in target_students]
+
+    # 2. Query analytics with outer join
+    analytics_records = db.query(StudentAnalytics).filter(StudentAnalytics.student_id.in_(target_student_ids)).all()
+    analytics_map = {a.student_id: a for a in analytics_records}
 
     norm_cat = normalize_domain(domain)
-    
-    # 2. Sort by the target average score
-    if norm_cat == "DSA":
-        query = query.order_by(StudentAnalytics.dsa_average.desc())
-    elif norm_cat == "DBMS":
-        query = query.order_by(StudentAnalytics.dbms_average.desc())
-    elif norm_cat == "FullStack":
-        query = query.order_by(StudentAnalytics.fullstack_average.desc())
-    elif norm_cat == "Aptitude":
-        query = query.order_by(StudentAnalytics.aptitude_average.desc())
-    elif norm_cat == "Coding":
-        query = query.order_by(StudentAnalytics.coding_average.desc())
-    elif norm_cat == "Academic":
-        query = query.order_by(StudentAnalytics.academic_average.desc())
-    elif norm_cat == "Technical":
-        query = query.order_by(StudentAnalytics.technical_average.desc())
-    else:
-        norm_cat = "Overall"
-        query = query.order_by(StudentAnalytics.overall_score.desc())
 
-    records = query.all()
-    leaderboard = []
+    # 3. Build student records list
+    items = []
+    for student in target_students:
+        analytics = analytics_map.get(student.id)
+        
+        domain_score = None
+        overall_score = None
+        best_score = None
+        latest_score = None
+        strongest = "Not added"
+        weakest = "Not added"
+        domain_scores_map = {}
 
-    for idx, (student, analytics) in enumerate(records):
-        # Determine the domain score
-        if norm_cat == "DSA":
-            domain_score = analytics.dsa_average
-        elif norm_cat == "DBMS":
-            domain_score = analytics.dbms_average
-        elif norm_cat == "FullStack":
-            domain_score = analytics.fullstack_average
-        elif norm_cat == "Aptitude":
-            domain_score = analytics.aptitude_average
-        elif norm_cat == "Coding":
-            domain_score = analytics.coding_average
-        elif norm_cat == "Academic":
-            domain_score = analytics.academic_average
-        elif norm_cat == "Technical":
-            domain_score = analytics.technical_average
-        else:
-            domain_score = analytics.overall_score
+        if analytics:
+            overall_score = analytics.overall_score
+            best_score = analytics.best_score
+            latest_score = analytics.latest_score
+            if analytics.strongest_domain:
+                strongest = analytics.strongest_domain
+            if analytics.weakest_domain:
+                weakest = analytics.weakest_domain
 
-        profile_image = student.profile_image
+            domain_scores_map = {
+                "DSA": analytics.dsa_average or 0.0,
+                "DBMS": analytics.dbms_average or 0.0,
+                "FullStack": analytics.fullstack_average or 0.0,
+                "Aptitude": analytics.aptitude_average or 0.0,
+                "Coding": analytics.coding_average or 0.0,
+                "Academic": analytics.academic_average or 0.0,
+                "Technical": analytics.technical_average or 0.0
+            }
+
+            if norm_cat == "DSA":
+                domain_score = analytics.dsa_average
+            elif norm_cat == "DBMS":
+                domain_score = analytics.dbms_average
+            elif norm_cat == "FullStack":
+                domain_score = analytics.fullstack_average
+            elif norm_cat == "Aptitude":
+                domain_score = analytics.aptitude_average
+            elif norm_cat == "Coding":
+                domain_score = analytics.coding_average
+            elif norm_cat == "Academic":
+                domain_score = analytics.academic_average
+            elif norm_cat == "Technical":
+                domain_score = analytics.technical_average
+            else:
+                domain_score = analytics.overall_score
+
+        profile_image = student.profile_image or ""
         if not profile_image and student.user_id:
             from app.models.profile import UserProfile
             user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
-            if user_prof:
+            if user_prof and user_prof.profile_image:
                 profile_image = user_prof.profile_image
 
-        leaderboard.append({
-            "id": student.id,
-            "rank": idx + 1,
-            "register_no": student.register_no,
-            "registerNo": student.register_no,
-            "name": student.name,
-            "overall_score": analytics.overall_score,
-            "overallScore": analytics.overall_score,
-            "domain_score": domain_score,
-            "domainScore": domain_score,
-            "best_score": analytics.best_score,
-            "bestScore": analytics.best_score,
-            "latest_score": analytics.latest_score,
-            "latestScore": analytics.latest_score,
-            "strongest_domain": analytics.strongest_domain,
-            "strongestDomain": analytics.strongest_domain,
-            "weakest_domain": analytics.weakest_domain,
-            "weakestDomain": analytics.weakest_domain,
-            "profile_image": profile_image or "",
-            "profileImage": profile_image or ""
+        items.append({
+            "target_score": domain_score if domain_score is not None else -1.0,
+            "has_score": domain_score is not None and domain_score > 0,
+            "data": {
+                "id": student.id,
+                "user_id": student.user_id,
+                "register_no": student.register_no,
+                "registerNo": student.register_no,
+                "name": student.name,
+                "department": student.department,
+                "year": student.year,
+                "section": student.section,
+                "batch": student.batch,
+                "overall_score": overall_score,
+                "overallScore": overall_score,
+                "domain_score": domain_score,
+                "domainScore": domain_score,
+                "domain_scores": domain_scores_map,
+                "domainScores": domain_scores_map,
+                "best_score": best_score,
+                "bestScore": best_score,
+                "latest_score": latest_score,
+                "latestScore": latest_score,
+                "strongest_domain": strongest,
+                "strongestDomain": strongest,
+                "weakest_domain": weakest,
+                "weakestDomain": weakest,
+                "profile_image": profile_image,
+                "profileImage": profile_image
+            }
         })
+
+    # 4. Sort records: scored students descending by score, unscored students by name
+    items.sort(key=lambda x: (x["has_score"], x["target_score"]), reverse=True)
+
+    # 5. Assign rank numbers (only for scored students)
+    leaderboard = []
+    for idx, item in enumerate(items):
+        row = item["data"]
+        if item["has_score"]:
+            row["rank"] = idx + 1
+        else:
+            row["rank"] = None
+        leaderboard.append(row)
 
     return leaderboard
