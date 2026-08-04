@@ -201,8 +201,13 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
     if not skills:
         skills = DEFAULT_SKILLS
 
-    # CGPA
+    # CGPA Resolution
     custom_cgpa = hero_data.get("cgpa")
+    if custom_cgpa is None or str(custom_cgpa).strip() == "":
+        custom_cgpa = custom_data.get("customCGPA")
+    if custom_cgpa is None or str(custom_cgpa).strip() == "":
+        custom_cgpa = custom_data.get("cgpa")
+
     if custom_cgpa is not None and str(custom_cgpa).strip() != "":
         try:
             cgpa_str = f"{float(custom_cgpa):.2f}"
@@ -414,7 +419,8 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
             "resume": resume_url_custom
         },
         "sections": sections_config,
-        "music": music_config
+        "music": music_config,
+        "customization_data": custom_data
     }
 
     # 6. Format Performance dictionary

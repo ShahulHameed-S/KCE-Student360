@@ -2477,6 +2477,9 @@ export const FacultyDashboard = () => {
           };
 
           const res = await portfolioCustomizationService.saveStudentPortfolioCustomization(payload);
+          const currentRegisterNo = user?.register_no || user?.registerNo || activeProfile?.register_no || "22AD001";
+          localStorage.setItem(`student360_portfolio_customization_${currentRegisterNo}`, JSON.stringify(payload));
+          
           setCustomizationMessage(res.message || "Portfolio updated successfully");
           setStudentProfile(prev => ({
             ...prev,

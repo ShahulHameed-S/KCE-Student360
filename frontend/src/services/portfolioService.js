@@ -51,7 +51,9 @@ export const portfolioService = {
         },
         ai_summary: data.aiSummary || data.ai_summary || null,
         performance: performance,
-        student: student
+        student: student,
+        portfolioCustomization: customization,
+        portfolio_customization: customization
       };
 
       console.log("Portfolio API data:", mapped);

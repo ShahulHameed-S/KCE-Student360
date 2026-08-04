@@ -231,59 +231,49 @@ export const PortfolioPage = () => {
   };
 
   // Safe customization extraction
-  const customization = portfolio?.portfolioCustomization || portfolio?.portfolio_customization || {};
-  const customHero = customization?.hero || {};
-  const customSkills = customization?.skills || {};
-  
-  const customLinks = {
-    github: customization?.links?.github || customization?.githubUrl || customization?.github_url || "",
-    linkedin: customization?.links?.linkedin || customization?.linkedinUrl || customization?.linkedin_url || "",
-    leetcode: customization?.links?.leetcode || "",
-    hackerrank: customization?.links?.hackerrank || "",
-    website: customization?.links?.website || "",
-    resume: customization?.links?.resume || ""
-  };
+  const customizationData =
+    portfolio?.portfolioCustomization ||
+    portfolio?.portfolio_customization ||
+    portfolio?.customization_data ||
+    portfolio?.customization ||
+    {};
 
-  const customSections = {
-    about: customization?.sections?.about || {},
-    performance: customization?.sections?.performance || {},
-    resume: customization?.sections?.resume || {},
-    projects: customization?.sections?.projects || {},
-    certifications: customization?.sections?.certifications || {},
-    achievements: customization?.sections?.achievements || {},
-    contact: customization?.sections?.contact || {}
-  };
+  const hero = customizationData?.hero || customizationData?.customization_data?.hero || {};
+  const links = customizationData?.links || {};
+  const sections = customizationData?.sections || {};
+  const music = customizationData?.music || {};
+  const skillsConfig = customizationData?.skills || {};
 
-  const customMusic = {
-    visible: customization?.music?.visible !== undefined ? customization.music.visible : true,
-    title: customization?.music?.title || "Interstellar Theme",
-    artist: customization?.music?.artist || "Hans Zimmer — Stellar Mix"
-  };
+  const safeArray = (value) => Array.isArray(value) ? value : [];
 
   const categorizedSkills = {
-    technical: Array.isArray(customSkills?.technical) ? customSkills.technical : [],
-    programming: Array.isArray(customSkills?.programming) ? customSkills.programming : [],
-    frameworks: Array.isArray(customSkills?.frameworks) ? customSkills.frameworks : [],
-    databases: Array.isArray(customSkills?.databases) ? customSkills.databases : [],
-    aiMl: Array.isArray(customSkills?.aiMl) ? customSkills.aiMl : [],
-    softSkills: Array.isArray(customSkills?.softSkills) ? customSkills.softSkills : [],
-    areasOfInterest: Array.isArray(customSkills?.areasOfInterest) ? customSkills.areasOfInterest : []
+    technical: safeArray(skillsConfig.technical),
+    programming: safeArray(skillsConfig.programming),
+    frameworks: safeArray(skillsConfig.frameworks),
+    databases: safeArray(skillsConfig.databases),
+    aiMl: safeArray(skillsConfig.aiMl),
+    softSkills: safeArray(skillsConfig.softSkills),
+    areasOfInterest: safeArray(skillsConfig.areasOfInterest)
   };
 
-  const categorizedSkillsList = [
-    { name: "Technical Skills", list: categorizedSkills.technical },
-    { name: "Programming Languages", list: categorizedSkills.programming },
-    { name: "Frameworks & Libraries", list: categorizedSkills.frameworks },
-    { name: "Databases", list: categorizedSkills.databases },
-    { name: "AI/ML & DS", list: categorizedSkills.aiMl },
-    { name: "Soft Skills", list: categorizedSkills.softSkills },
-    { name: "Areas of Interest", list: categorizedSkills.areasOfInterest }
-  ].filter(cat => Array.isArray(cat.list) && cat.list.length > 0);
+  const labelMap = {
+    technical: "Technical Skills",
+    programming: "Programming Languages",
+    frameworks: "Frameworks & Libraries",
+    databases: "Databases",
+    aiMl: "AI/ML & DS",
+    softSkills: "Soft Skills",
+    areasOfInterest: "Areas of Interest"
+  };
+
+  const categorizedSkillsList = Object.entries(categorizedSkills)
+    .filter(([_, items]) => Array.isArray(items) && items.length > 0)
+    .map(([key, list]) => ({ name: labelMap[key] || key, list }));
 
   const flatSkills = Array.isArray(portfolio?.skills) 
     ? portfolio.skills 
-    : Array.isArray(customization?.skills) 
-    ? customization.skills 
+    : Array.isArray(customizationData?.skills) 
+    ? customizationData.skills 
     : [];
 
   const resumeSkills = portfolio.resume?.keySkills || portfolio.resume?.key_skills || [];
@@ -296,6 +286,44 @@ export const PortfolioPage = () => {
       ? resumeSkills
       : defaultSkills;
 
+  const customHero = {
+    displayName: hero.displayName || customizationData.displayName || "",
+    welcomeText: hero.welcomeText || customizationData.welcomeText || "WELCOME TO MY PORTFOLIO",
+    avatarInitials: hero.avatarInitials || customizationData.avatarInitials || "",
+    headline: hero.headline || customizationData.headline || "",
+    intro: hero.intro || customizationData.about_me || customizationData.aboutMe || "",
+    location: hero.location || customizationData.location || "",
+    showEmail: customizationData?.showEmail !== undefined ? customizationData.showEmail : (hero.showEmail !== undefined ? hero.showEmail : true),
+    showPhone: customizationData?.showPhone !== undefined ? customizationData.showPhone : (hero.showPhone !== undefined ? hero.showPhone : true),
+    showRegisterNo: customizationData?.showRegisterNo !== undefined ? customizationData.showRegisterNo : (hero.showRegisterNo !== undefined ? hero.showRegisterNo : true),
+    showLocation: customizationData?.showLocation !== undefined ? customizationData.showLocation : (hero.showLocation !== undefined ? hero.showLocation : true)
+  };
+
+  const customLinks = {
+    github: links.github || customizationData.githubUrl || customizationData.github_url || "",
+    linkedin: links.linkedin || customizationData.linkedinUrl || customizationData.linkedin_url || "",
+    leetcode: links.leetcode || "",
+    hackerrank: links.hackerrank || "",
+    website: links.website || "",
+    resume: links.resume || ""
+  };
+
+  const customSections = {
+    about: sections.about || customizationData.sections?.about || {},
+    performance: sections.performance || customizationData.sections?.performance || {},
+    resume: sections.resume || customizationData.sections?.resume || {},
+    projects: sections.projects || customizationData.sections?.projects || {},
+    certifications: sections.certifications || customizationData.sections?.certifications || {},
+    achievements: sections.achievements || customizationData.sections?.achievements || {},
+    contact: sections.contact || customizationData.sections?.contact || {}
+  };
+
+  const customMusic = {
+    visible: music.visible !== undefined ? music.visible : (customizationData?.music?.visible !== undefined ? customizationData.music.visible : true),
+    title: music.title || customizationData?.music?.title || "Interstellar Theme",
+    artist: music.artist || customizationData?.music?.artist || "Hans Zimmer — Stellar Mix"
+  };
+
   const displayName = customHero.displayName || portfolio?.name || "Student";
   const welcomeText = customHero.welcomeText || "WELCOME TO MY PORTFOLIO";
   const initials = customHero.avatarInitials || (displayName ? displayName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase() : "ST");
@@ -303,7 +331,7 @@ export const PortfolioPage = () => {
   const headline =
     customHero.headline ||
     portfolio.title ||
-    customization.headline ||
+    customizationData.headline ||
     portfolio.resume?.primaryRole ||
     portfolio.resume?.primary_role ||
     portfolio.resume?.preferredRole ||
@@ -315,7 +343,7 @@ export const PortfolioPage = () => {
   const aboutText =
     customHero.intro ||
     portfolio.about ||
-    customization.about_me ||
+    customizationData.about_me ||
     portfolio.resume?.careerObjective ||
     portfolio.resume?.career_objective ||
     "I am an Artificial Intelligence and Data Science student passionate about building AI-powered full stack applications, solving real-world problems, and improving through verified academic and technical performance.";
@@ -323,19 +351,29 @@ export const PortfolioPage = () => {
   const careerObjective =
     portfolio.career_objective ||
     portfolio.careerObjective ||
-    customization.career_objective ||
+    customizationData.career_objective ||
     portfolio.resume?.careerObjective ||
     portfolio.resume?.career_objective ||
     "To secure a challenging role in an industry-leading organization, leveraging my analytical competencies in Artificial Intelligence, Full-Stack Software Engineering, and problem-solving to design and deploy real-world product solutions.";
 
-  const showCgpa = customization?.showCgpa !== false;
-  const customCgpa = customization?.cgpa;
-  let cgpaText = "CGPA Not Added";
-  if (customCgpa && customCgpa.trim()) {
-    cgpaText = `${customCgpa} CGPA`;
-  } else if (portfolio.overall_score) {
-    cgpaText = `${safeFixed(portfolio.overall_score / 10, 2)} CGPA`;
-  }
+  const showCgpa = customizationData?.showCgpa !== false;
+  const customCgpa =
+    hero?.cgpa ||
+    customizationData?.customCGPA ||
+    customizationData?.cgpa;
+
+  const displayCgpa =
+    customCgpa ||
+    portfolio?.cgpa ||
+    (portfolio?.overall_score ? safeFixed(portfolio.overall_score / 10, 2) : null) ||
+    portfolio?.analytics?.cgpa ||
+    "CGPA Not Added";
+
+  const cgpaText = displayCgpa === "CGPA Not Added" 
+    ? "CGPA Not Added" 
+    : String(displayCgpa).toLowerCase().includes("cgpa")
+    ? displayCgpa
+    : `${displayCgpa} CGPA`;
 
   // Calculate assessment timeline items
   const studentPerformance = portfolio.performance?.score_history || portfolio.performance?.scoreHistory || mockPerformance[registerNo] || [];
@@ -588,10 +626,10 @@ export const PortfolioPage = () => {
           <div className="lg:col-span-7 space-y-6 text-left">
             <div className="space-y-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-[#A855F7] bg-[#A855F7]/10 px-3 py-1.5 rounded-md border border-[#A855F7]/20">
-                Welcome to my portfolio
+                {welcomeText}
               </span>
               <h1 className="text-4xl md:text-6xl font-black tracking-tight text-white leading-none">
-                Hi, I'm <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#A855F7] to-[#8B5CF6]">{portfolio.name}</span>
+                Hi, I'm <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#A855F7] to-[#8B5CF6]">{displayName}</span>
               </h1>
               <h2 className="text-xl md:text-3xl font-extrabold text-slate-200 mt-2">
                 <span className="custom-typing-cursor">{typedText}</span>
@@ -640,7 +678,7 @@ export const PortfolioPage = () => {
                 {avatarUrl && !imageError ? (
                   <img
                     src={avatarUrl}
-                    alt={portfolio.name}
+                    alt={displayName}
                     className="w-24 h-24 rounded-full object-cover border-4 border-[#A855F7] ring-8 ring-[#A855F7]/10 shadow-[0_0_20px_rgba(168,85,247,0.35)]"
                     onError={() => {
                       setImageError(true);
@@ -656,13 +694,15 @@ export const PortfolioPage = () => {
                 )}
                 
                 {/* CGPA Overlaid pill */}
-                <div className="absolute -bottom-2.5 right-1/2 translate-x-1/2 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 border border-purple-400/30 text-white text-[8px] font-black rounded-full shadow-lg uppercase tracking-wider">
-                  {portfolio.overall_score ? `${safeFixed(portfolio.overall_score / 10, 2)} CGPA` : "9.18 CGPA"}
-                </div>
+                {showCgpa && (
+                  <div className="absolute -bottom-2.5 right-1/2 translate-x-1/2 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 border border-purple-400/30 text-white text-[8px] font-black rounded-full shadow-lg uppercase tracking-wider">
+                    {cgpaText}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1 pt-1.5">
-                <h2 className="text-base font-bold text-white tracking-tight">{portfolio.name}</h2>
+                <h2 className="text-base font-bold text-white tracking-tight">{displayName}</h2>
                 <span className="inline-block px-2.5 py-0.5 bg-[#18181D] text-[#A855F7] border border-[#2E2E33] rounded-lg text-[9px] font-extrabold uppercase tracking-wider">
                   {headline}
                 </span>
@@ -670,80 +710,88 @@ export const PortfolioPage = () => {
 
               {/* Specific info rows */}
               <div className="w-full text-left space-y-3 pt-4 border-t border-[#2E2E33]/60 text-[10px] font-bold text-[#A1A1AA] uppercase tracking-wider font-mono">
-                <div className="flex items-center space-x-2.5">
-                  <Mail size={14} className="text-[#A855F7] flex-shrink-0" />
-                  <div className="min-w-0">
-                    <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Official Email</span>
-                    <span className="text-[#F3F4F6] block truncate mt-0.5 lowercase font-semibold">{portfolio.contact?.email}</span>
+                {customHero.showEmail !== false && (
+                  <div className="flex items-center space-x-2.5">
+                    <Mail size={14} className="text-[#A855F7] flex-shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Official Email</span>
+                      <span className="text-[#F3F4F6] block truncate mt-0.5 lowercase font-semibold">{portfolio.contact?.email}</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center space-x-2.5">
-                    <GraduationCap size={14} className="text-[#A855F7] flex-shrink-0" />
-                    <div>
-                      <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Register No</span>
-                      <span className="text-[#F3F4F6] block mt-0.5 font-semibold">{portfolio.register_no}</span>
+                  {customHero.showRegisterNo !== false && (
+                    <div className="flex items-center space-x-2.5">
+                      <GraduationCap size={14} className="text-[#A855F7] flex-shrink-0" />
+                      <div>
+                        <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Register No</span>
+                        <span className="text-[#F3F4F6] block mt-0.5 font-semibold">{portfolio.register_no}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2.5">
-                    <MapPin size={14} className="text-[#A855F7] flex-shrink-0" />
-                    <div>
-                      <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Location</span>
-                      <span className="text-[#F3F4F6] block mt-0.5 font-semibold font-sans">{portfolio.contact?.location || "Coimbatore"}</span>
+                  )}
+                  {customHero.showLocation !== false && (
+                    <div className="flex items-center space-x-2.5">
+                      <MapPin size={14} className="text-[#A855F7] flex-shrink-0" />
+                      <div>
+                        <span className="text-[#71717A] text-[8px] tracking-widest block font-sans">Location</span>
+                        <span className="text-[#F3F4F6] block mt-0.5 font-semibold font-sans">{customHero.location || portfolio.contact?.location || "Coimbatore"}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* Mock Music Widget */}
-            <div className="bg-[#111114] border border-[#2E2E33] rounded-2xl p-4 flex flex-col space-y-3 shadow-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-[8px] font-extrabold uppercase tracking-widest text-[#71717A] flex items-center space-x-1.5">
-                  <Music size={10} className="text-[#A855F7] animate-pulse" />
-                  <span>Now Playing</span>
-                </span>
-                
-                {/* Visual EQ animation */}
-                <div className="flex items-end space-x-0.5 h-3">
-                  <div className={`eq-animated-bar eq-anim-1 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
-                  <div className={`eq-animated-bar eq-anim-2 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
-                  <div className={`eq-animated-bar eq-anim-3 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
-                  <div className={`eq-animated-bar eq-anim-4 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-950 to-purple-950 flex items-center justify-center text-[#A855F7] border border-[#2E2E33] shadow-inner font-mono text-[9px] font-black">
-                  🌌
-                </div>
-                <div className="min-w-0 text-left">
-                  <h4 className="text-xs font-bold text-white truncate uppercase">Interstellar Theme</h4>
-                  <span className="text-[9px] text-[#A1A1AA] block truncate font-bold font-sans">Hans Zimmer — Stellar Mix</span>
-                </div>
-              </div>
-
-              {/* Controls and Scrubber */}
-              <div className="space-y-2">
-                <div className="w-full bg-[#18181D] h-1.5 rounded-full overflow-hidden border border-[#2E2E33] relative">
-                  <div 
-                    className="bg-[#A855F7] h-full rounded-full transition-all"
-                    style={{ width: `${songProgress}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[8px] font-bold text-[#71717A] uppercase tracking-wider font-mono">
-                  <span>1:24</span>
-                  <div className="flex items-center space-x-3 text-slate-400">
-                    <button onClick={() => setIsPlaying(prev => !prev)} className="p-1 hover:text-white transition-colors cursor-pointer">
-                      {isPlaying ? <Pause size={10} /> : <Play size={10} />}
-                    </button>
-                    <Heart size={10} className="text-[#A855F7] fill-[#A855F7]/25" />
+            {customMusic.visible && (
+              <div className="bg-[#111114] border border-[#2E2E33] rounded-2xl p-4 flex flex-col space-y-3 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] font-extrabold uppercase tracking-widest text-[#71717A] flex items-center space-x-1.5">
+                    <Music size={10} className="text-[#A855F7] animate-pulse" />
+                    <span>Now Playing</span>
+                  </span>
+                  
+                  {/* Visual EQ animation */}
+                  <div className="flex items-end space-x-0.5 h-3">
+                    <div className={`eq-animated-bar eq-anim-1 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
+                    <div className={`eq-animated-bar eq-anim-2 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
+                    <div className={`eq-animated-bar eq-anim-3 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
+                    <div className={`eq-animated-bar eq-anim-4 ${isPlaying ? "" : "paused"}`} style={{ animationPlayState: isPlaying ? "running" : "paused" }} />
                   </div>
-                  <span>4:32</span>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-950 to-purple-950 flex items-center justify-center text-[#A855F7] border border-[#2E2E33] shadow-inner font-mono text-[9px] font-black">
+                    🌌
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <h4 className="text-xs font-bold text-white truncate uppercase">{customMusic.title}</h4>
+                    <span className="text-[9px] text-[#A1A1AA] block truncate font-bold font-sans">{customMusic.artist}</span>
+                  </div>
+                </div>
+
+                {/* Controls and Scrubber */}
+                <div className="space-y-2">
+                  <div className="w-full bg-[#18181D] h-1.5 rounded-full overflow-hidden border border-[#2E2E33] relative">
+                    <div 
+                      className="bg-[#A855F7] h-full rounded-full transition-all"
+                      style={{ width: `${songProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[8px] font-bold text-[#71717A] uppercase tracking-wider font-mono">
+                    <span>1:24</span>
+                    <div className="flex items-center space-x-3 text-slate-400">
+                      <button onClick={() => setIsPlaying(prev => !prev)} className="p-1 hover:text-white transition-colors cursor-pointer">
+                        {isPlaying ? <Pause size={10} /> : <Play size={10} />}
+                      </button>
+                      <Heart size={10} className="text-[#A855F7] fill-[#A855F7]/25" />
+                    </div>
+                    <span>4:32</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
           </div>
         </section>
