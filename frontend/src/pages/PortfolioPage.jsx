@@ -405,6 +405,7 @@ export const PortfolioPage = () => {
   const hasProjects = portfolio.visibility?.showProjects !== false;
   const hasAchievements = portfolio.visibility?.showAchievements !== false || portfolio.visibility?.showCertifications !== false;
   const hasContact = portfolio.visibility?.showContactLinks !== false;
+  const isResumeVisible = portfolio.visibility?.showResume !== false && portfolio.resume?.useInPortfolio === true;
 
   const visibleSections = {
     about: customSections.about?.visible !== false,
@@ -462,8 +463,6 @@ export const PortfolioPage = () => {
     if (isStudentPreview && (status === "Pending" || status === "Correction Required" || status === "Rejected")) return true;
     return false;
   });
-
-  const isResumeVisible = portfolio.visibility?.showResume !== false && portfolio.resume?.useInPortfolio === true;
 
   return (
     <div className="min-h-screen bg-[#050507] text-[#F3F4F6] pb-24 font-sans relative overflow-x-hidden flex flex-col items-center select-none">
