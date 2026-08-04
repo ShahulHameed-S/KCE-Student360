@@ -12,6 +12,40 @@ from app.schemas.submission import MentorReviewRequest
 
 router = APIRouter()
 
+def normalize_dept(dept: str) -> str:
+    if not dept:
+        return ""
+    d = dept.strip().lower()
+    d = d.replace("and", "&")
+    d = d.replace(" ", "")
+    if d in ["ai&ds", "artificialintelligence&datascience"]:
+        return "aids"
+    if d in ["it", "informationtechnology"]:
+        return "it"
+    if d in ["cse", "computerscience&engineering"]:
+        return "cse"
+    return d
+
+def normalize_year(year) -> str:
+    if not year:
+        return ""
+    y = str(year).strip().lower()
+    y = y.replace("year", "").strip()
+    roman_map = {"i": "1", "ii": "2", "iii": "3", "iv": "4"}
+    if y in roman_map:
+        return roman_map[y]
+    return y
+
+def normalize_section(sec: str) -> str:
+    if not sec:
+        return ""
+    s = sec.strip().lower()
+    if "-" in s:
+        parts = [p.strip() for p in s.split("-")]
+        if parts:
+            s = parts[-1]
+    return s
+
 def get_assigned_student_ids(db: Session, mentor_id: int) -> List[int]:
     """Helper to retrieve Student IDs assigned to a specific mentor."""
     assignments = db.query(MentorAssignment).filter(MentorAssignment.mentor_id == mentor_id).all()
@@ -217,17 +251,18 @@ async def get_mentor_students(
     from app.models.student import FacultyProfile
     
     if current_user.role in ["admin", "faculty"]:
-        students = db.query(Student).all()
+        # Do not return demo students from backend
+        all_students = db.query(Student).all()
+        students = [s for s in all_students if not s.register_no.lower().startswith("22ad")]
     else:
-        students_query_list = []
-        
-        # 1. Explicitly assigned student IDs
+        explicit_students = []
         assigned_student_ids = get_assigned_student_ids(db, current_user.id)
         if assigned_student_ids:
-            explicit_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-            students_query_list.extend(explicit_students)
+            db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+            # Filter out demo students from explicit assignments
+            explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
             
-        # 2. Class-based assignment criteria
+        class_students = []
         from app.models.profile import UserProfile
         import json
         
@@ -247,23 +282,52 @@ async def get_mentor_students(
             except Exception:
                 pass
                 
+        # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
+        if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+            assigned_dept = "AI & DS"
+            assigned_yr = "3"
+            assigned_sec = "A"
+            assigned_batch = "2028"
+            
         if not assigned_dept:
             fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
             if fp:
                 assigned_dept = fp.department
                 
         if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
-            query = db.query(Student)
-            if assigned_dept:
-                query = query.filter(Student.department.ilike(assigned_dept))
-            if assigned_yr:
-                query = query.filter(Student.year.ilike(assigned_yr))
-            if assigned_sec:
-                query = query.filter(Student.section.ilike(assigned_sec))
-            if assigned_batch:
-                query = query.filter(Student.batch.ilike(assigned_batch))
-            class_students = query.all()
-            students_query_list.extend(class_students)
+            all_db_students = db.query(Student).all()
+            norm_m_dept = normalize_dept(assigned_dept)
+            norm_m_yr = normalize_year(assigned_yr)
+            norm_m_sec = normalize_section(assigned_sec)
+            
+            for s in all_db_students:
+                # Do not return demo students from backend
+                if s.register_no.lower().startswith("22ad"):
+                    continue
+                    
+                match = True
+                if norm_m_dept:
+                    if normalize_dept(s.department) != norm_m_dept:
+                        match = False
+                if norm_m_yr:
+                    if normalize_year(s.year) != norm_m_yr:
+                        match = False
+                if norm_m_sec:
+                    if normalize_section(s.section) != norm_m_sec:
+                        match = False
+                if assigned_batch:
+                    if s.batch and s.batch.strip() != assigned_batch.strip():
+                        match = False
+                        
+                if match:
+                    class_students.append(s)
+                    
+        # Prefer explicit assignments if they exist after filtering demo students;
+        # otherwise use class-based matching
+        if explicit_students:
+            students_query_list = explicit_students
+        else:
+            students_query_list = class_students
             
         # Deduplicate
         seen_ids = set()
@@ -293,12 +357,12 @@ async def get_mentor_students(
             "profile_image": s.profile_image or "",
             "profileImage": s.profile_image or "",
             "created_at": s.created_at.isoformat() if s.created_at else "",
-            "overall_score": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else 0.0,
-            "overallScore": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else 0.0,
-            "strongest_domain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else None,
-            "strongestDomain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else None,
-            "weakest_domain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else None,
-            "weakestDomain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else None
+            "overall_score": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else None,
+            "overallScore": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else None,
+            "strongest_domain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else "Not added",
+            "strongestDomain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else "Not added",
+            "weakest_domain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else "Not added",
+            "weakestDomain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else "Not added"
         })
     return res_list
 
@@ -333,26 +397,57 @@ async def mentor_debug_students(
         except Exception:
             pass
             
+    # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
+    if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+        assigned_dept = "AI & DS"
+        assigned_yr = "3"
+        assigned_sec = "A"
+        assigned_batch = "2028"
+
     if not assigned_dept and fp:
         assigned_dept = fp.department
         
-    students_query_list = []
+    explicit_students = []
     if assigned_student_ids:
-        explicit_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-        students_query_list.extend(explicit_students)
+        db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+        # Filter out demo students from explicit assignments
+        explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
         
+    class_students = []
     if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
-        query = db.query(Student)
-        if assigned_dept:
-            query = query.filter(Student.department.ilike(assigned_dept))
-        if assigned_yr:
-            query = query.filter(Student.year.ilike(assigned_yr))
-        if assigned_sec:
-            query = query.filter(Student.section.ilike(assigned_sec))
-        if assigned_batch:
-            query = query.filter(Student.batch.ilike(assigned_batch))
-        class_students = query.all()
-        students_query_list.extend(class_students)
+        all_db_students = db.query(Student).all()
+        norm_m_dept = normalize_dept(assigned_dept)
+        norm_m_yr = normalize_year(assigned_yr)
+        norm_m_sec = normalize_section(assigned_sec)
+        
+        for s in all_db_students:
+            # Do not return demo students from backend
+            if s.register_no.lower().startswith("22ad"):
+                continue
+                
+            match = True
+            if norm_m_dept:
+                if normalize_dept(s.department) != norm_m_dept:
+                    match = False
+            if norm_m_yr:
+                if normalize_year(s.year) != norm_m_yr:
+                    match = False
+            if norm_m_sec:
+                if normalize_section(s.section) != norm_m_sec:
+                    match = False
+            if assigned_batch:
+                if s.batch and s.batch.strip() != assigned_batch.strip():
+                    match = False
+                    
+            if match:
+                class_students.append(s)
+                
+    # Prefer explicit assignments if they exist after filtering demo students;
+    # otherwise use class-based matching
+    if explicit_students:
+        students_query_list = explicit_students
+    else:
+        students_query_list = class_students
         
     # Deduplicate
     seen_ids = set()
@@ -365,7 +460,6 @@ async def mentor_debug_students(
     serialized_students = []
     for s in students:
         serialized_students.append({
-            "student_id": s.id,
             "register_no": s.register_no,
             "name": s.name,
             "department": s.department,
@@ -375,9 +469,8 @@ async def mentor_debug_students(
         })
         
     return {
-        "mentor_user_id": current_user.id,
         "mentor_email": current_user.email,
-        "assignments_count": len(assigned_student_ids),
+        "assignments_count": len(explicit_students),
         "class_assignment": {
             "department": assigned_dept or "",
             "year": assigned_yr or "",
