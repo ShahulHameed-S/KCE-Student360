@@ -219,47 +219,59 @@ async def get_mentor_students(
     if current_user.role in ["admin", "faculty"]:
         students = db.query(Student).all()
     else:
+        students_query_list = []
+        
+        # 1. Explicitly assigned student IDs
         assigned_student_ids = get_assigned_student_ids(db, current_user.id)
         if assigned_student_ids:
-            students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-        else:
-            from app.models.profile import UserProfile
-            import json
+            explicit_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+            students_query_list.extend(explicit_students)
             
-            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-            assigned_dept = None
-            assigned_yr = None
-            assigned_sec = None
-            assigned_batch = None
+        # 2. Class-based assignment criteria
+        from app.models.profile import UserProfile
+        import json
+        
+        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+        assigned_dept = None
+        assigned_yr = None
+        assigned_sec = None
+        assigned_batch = None
+        
+        if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+            try:
+                bio_data = json.loads(profile.bio)
+                assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+            except Exception:
+                pass
+                
+        if not assigned_dept:
+            fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+            if fp:
+                assigned_dept = fp.department
+                
+        if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+            query = db.query(Student)
+            if assigned_dept:
+                query = query.filter(Student.department.ilike(assigned_dept))
+            if assigned_yr:
+                query = query.filter(Student.year.ilike(assigned_yr))
+            if assigned_sec:
+                query = query.filter(Student.section.ilike(assigned_sec))
+            if assigned_batch:
+                query = query.filter(Student.batch.ilike(assigned_batch))
+            class_students = query.all()
+            students_query_list.extend(class_students)
             
-            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-                try:
-                    bio_data = json.loads(profile.bio)
-                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-                except Exception:
-                    pass
-                    
-            if not assigned_dept:
-                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-                if fp:
-                    assigned_dept = fp.department
-            
-            if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
-                query = db.query(Student)
-                if assigned_dept:
-                    query = query.filter(Student.department.ilike(assigned_dept))
-                if assigned_yr:
-                    query = query.filter(Student.year.ilike(assigned_yr))
-                if assigned_sec:
-                    query = query.filter(Student.section.ilike(assigned_sec))
-                if assigned_batch:
-                    query = query.filter(Student.batch.ilike(assigned_batch))
-                students = query.all()
-            else:
-                students = []
+        # Deduplicate
+        seen_ids = set()
+        students = []
+        for s in students_query_list:
+            if s.id not in seen_ids:
+                seen_ids.add(s.id)
+                students.append(s)
 
     res_list = []
     for s in students:
@@ -281,12 +293,12 @@ async def get_mentor_students(
             "profile_image": s.profile_image or "",
             "profileImage": s.profile_image or "",
             "created_at": s.created_at.isoformat() if s.created_at else "",
-            "overall_score": analytics_obj.overall_score if analytics_obj else 0.0,
-            "overallScore": analytics_obj.overall_score if analytics_obj else 0.0,
-            "strongest_domain": analytics_obj.strongest_domain if analytics_obj else "Coding",
-            "strongestDomain": analytics_obj.strongest_domain if analytics_obj else "Coding",
-            "weakest_domain": analytics_obj.weakest_domain if analytics_obj else "DBMS",
-            "weakestDomain": analytics_obj.weakest_domain if analytics_obj else "DBMS"
+            "overall_score": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else 0.0,
+            "overallScore": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else 0.0,
+            "strongest_domain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else None,
+            "strongestDomain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else None,
+            "weakest_domain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else None,
+            "weakestDomain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else None
         })
     return res_list
 
@@ -324,9 +336,12 @@ async def mentor_debug_students(
     if not assigned_dept and fp:
         assigned_dept = fp.department
         
+    students_query_list = []
     if assigned_student_ids:
-        students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-    elif assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+        explicit_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+        students_query_list.extend(explicit_students)
+        
+    if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
         query = db.query(Student)
         if assigned_dept:
             query = query.filter(Student.department.ilike(assigned_dept))
@@ -336,9 +351,16 @@ async def mentor_debug_students(
             query = query.filter(Student.section.ilike(assigned_sec))
         if assigned_batch:
             query = query.filter(Student.batch.ilike(assigned_batch))
-        students = query.all()
-    else:
-        students = []
+        class_students = query.all()
+        students_query_list.extend(class_students)
+        
+    # Deduplicate
+    seen_ids = set()
+    students = []
+    for s in students_query_list:
+        if s.id not in seen_ids:
+            seen_ids.add(s.id)
+            students.append(s)
         
     serialized_students = []
     for s in students:

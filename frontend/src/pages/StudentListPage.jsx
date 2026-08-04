@@ -37,6 +37,13 @@ export const StudentListPage = () => {
               ? response.students
               : [];
 
+        if (!import.meta.env.PROD) {
+          console.log("StudentListPage role:", user?.role);
+          console.log("StudentListPage API used:", user?.role === "mentor" ? "/mentor/students" : "studentService");
+          console.log("StudentListPage students count:", studentsData.length);
+          console.log("First student:", studentsData[0]);
+        }
+
         setStudents(studentsData);
       } catch (err) {
         console.error("Student list directory load failed:", {
@@ -57,39 +64,73 @@ export const StudentListPage = () => {
     {
       key: "register_no",
       label: "Register No",
-      sortable: true
+      sortable: true,
+      render: (row) => row.register_no || row.registerNo || "Not added"
     },
     {
       key: "name",
       label: "Name",
       sortable: true,
-      className: "font-bold text-[#214C55]"
+      className: "font-bold text-[#214C55]",
+      render: (row) => row.name || row.full_name || "Student"
     },
     {
       key: "department",
       label: "Department",
-      sortable: true
+      sortable: true,
+      render: (row) => row.department || "Not added"
     },
     {
       key: "year_sec",
       label: "Year - Sec",
-      render: (row) => `Year ${row.year} - ${row.section}`
+      render: (row) => {
+        const yr = row.year;
+        const sec = row.section;
+        if (yr && sec) {
+          return `Year ${yr} - ${sec}`;
+        }
+        if (yr) {
+          return `Year ${yr}`;
+        }
+        if (sec) {
+          return `Sec ${sec}`;
+        }
+        return "Not added";
+      }
     },
     {
       key: "overall_score",
       label: "Overall Score",
       sortable: true,
-      render: (row) => <ScoreBadge score={row.overall_score} />
+      render: (row) => {
+        const score = row.overall_score ?? row.overallScore;
+        if (score === undefined || score === null || score === 0 || score === 0.0) {
+          return <span className="text-[#6B7280] font-bold">Not added</span>;
+        }
+        return <ScoreBadge score={score} />;
+      }
     },
     {
       key: "strongest_domain",
       label: "Strongest Domain",
-      render: (row) => <DomainBadge domain={row.strongest_domain} />
+      render: (row) => {
+        const dom = row.strongest_domain || row.strongestDomain;
+        if (!dom || dom === "Not added") {
+          return <span className="text-[#6B7280] font-bold">Not added</span>;
+        }
+        return <DomainBadge domain={dom} />;
+      }
     },
     {
       key: "weakest_domain",
       label: "Weakest Domain",
-      render: (row) => <DomainBadge domain={row.weakest_domain} />
+      render: (row) => {
+        const dom = row.weakest_domain || row.weakestDomain;
+        if (!dom || dom === "Not added") {
+          return <span className="text-[#6B7280] font-bold">Not added</span>;
+        }
+        return <DomainBadge domain={dom} />;
+      }
     },
     {
       key: "actions",
