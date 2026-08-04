@@ -94,6 +94,131 @@ async def recommend_students(
     """Retrieves student recommendations ranked by domain score."""
     return get_student_recommendations(db, domain, limit)
 
+@router.get("/debug/{id_or_register_no}")
+async def debug_student_by_id(
+    id_or_register_no: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Debug endpoint to verify student lookup and mentor access rules."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+    
+    student = None
+    if str(id_or_register_no).isdigit():
+        student = db.query(Student).filter(Student.id == int(id_or_register_no)).first()
+        if not student:
+            student = db.query(Student).filter(Student.user_id == int(id_or_register_no)).first()
+            
+    if not student:
+        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(str(id_or_register_no))).first()
+
+    if not student:
+        return {
+            "requested": id_or_register_no,
+            "student_found": False,
+            "student_id": None,
+            "register_no": None,
+            "mentor_email": current_user.email,
+            "mentor_access": False,
+            "access_reason": "student_not_found",
+            "projects_count": 0,
+            "achievements_count": 0,
+            "certifications_count": 0,
+            "scores_count": 0,
+            "analytics_exists": False
+        }
+
+    mentor_access = False
+    access_reason = "denied"
+    
+    if current_user.role in ["admin", "faculty"]:
+        mentor_access = True
+        access_reason = "admin" if current_user.role == "admin" else "faculty"
+    elif current_user.role == "mentor":
+        if student.register_no and student.register_no.lower().startswith("22ad"):
+            mentor_access = True
+            access_reason = "demo_bypass"
+        else:
+            is_assigned = db.query(MentorAssignment).filter(
+                MentorAssignment.mentor_id == current_user.id,
+                MentorAssignment.student_id == student.id
+            ).first()
+            
+            if is_assigned:
+                mentor_access = True
+                access_reason = "explicit_assignment"
+            else:
+                from app.models.profile import UserProfile
+                import json
+                profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+                assigned_dept = None
+                assigned_yr = None
+                assigned_sec = None
+                assigned_batch = None
+                if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+                    try:
+                        bio_data = json.loads(profile.bio)
+                        assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                        assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                        assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                        assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+                    except Exception:
+                        pass
+                        
+                if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+                    assigned_dept = "AI & DS"
+                    assigned_yr = "3"
+                    assigned_sec = "A"
+                    assigned_batch = "2028"
+                        
+                if not assigned_dept:
+                    from app.models.student import FacultyProfile
+                    fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+                    if fp:
+                        assigned_dept = fp.department
+                
+                from app.routers.mentor import normalize_dept, normalize_year, normalize_section
+                
+                matches_class = True
+                if assigned_dept:
+                    if normalize_dept(student.department) != normalize_dept(assigned_dept):
+                        matches_class = False
+                if assigned_yr:
+                    if normalize_year(student.year) != normalize_year(assigned_yr):
+                        matches_class = False
+                if assigned_sec:
+                    if normalize_section(student.section) != normalize_section(assigned_sec):
+                        matches_class = False
+                if assigned_batch:
+                    if student.batch and student.batch.strip() != assigned_batch.strip():
+                        matches_class = False
+                    
+                if (assigned_dept or assigned_yr or assigned_sec or assigned_batch) and matches_class:
+                    mentor_access = True
+                    access_reason = "class_match"
+
+    projects_count = db.query(StudentProject).filter(StudentProject.student_id == student.id).count()
+    certs_count = db.query(StudentCertification).filter(StudentCertification.student_id == student.id).count()
+    achieve_count = db.query(StudentAchievement).filter(StudentAchievement.student_id == student.id).count()
+    scores_count = db.query(AssessmentScore).filter(AssessmentScore.student_id == student.id).count()
+    analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
+
+    return {
+        "requested": id_or_register_no,
+        "student_found": True,
+        "student_id": student.id,
+        "register_no": student.register_no,
+        "mentor_email": current_user.email,
+        "mentor_access": mentor_access,
+        "access_reason": access_reason,
+        "projects_count": projects_count,
+        "achievements_count": achieve_count,
+        "certifications_count": certs_count,
+        "scores_count": scores_count,
+        "analytics_exists": analytics_obj is not None
+    }
+
 @router.get("/{id_or_register_no}")
 async def get_student_by_id(
     id_or_register_no: str,
@@ -137,6 +262,7 @@ async def get_student_by_id(
             assigned_dept = None
             assigned_yr = None
             assigned_sec = None
+            assigned_batch = None
             if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
                 try:
                     bio_data = json.loads(profile.bio)
@@ -147,26 +273,39 @@ async def get_student_by_id(
                 except Exception:
                     pass
                     
+            # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
+            if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+                assigned_dept = "AI & DS"
+                assigned_yr = "3"
+                assigned_sec = "A"
+                assigned_batch = "2028"
+                    
             if not assigned_dept:
                 from app.models.student import FacultyProfile
                 fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
                 if fp:
                     assigned_dept = fp.department
             
+            from app.routers.mentor import normalize_dept, normalize_year, normalize_section
+            
             matches_class = True
-            if assigned_dept and (not student.department or student.department.lower() != assigned_dept.lower()):
-                matches_class = False
-            if assigned_yr and student.year != assigned_yr:
-                matches_class = False
-            if assigned_sec and (not student.section or student.section.lower() != assigned_sec.lower()):
-                matches_class = False
-            if assigned_batch and (not student.batch or student.batch.lower() != assigned_batch.lower()):
-                matches_class = False
+            if assigned_dept:
+                if normalize_dept(student.department) != normalize_dept(assigned_dept):
+                    matches_class = False
+            if assigned_yr:
+                if normalize_year(student.year) != normalize_year(assigned_yr):
+                    matches_class = False
+            if assigned_sec:
+                if normalize_section(student.section) != normalize_section(assigned_sec):
+                    matches_class = False
+            if assigned_batch:
+                if student.batch and student.batch.strip() != assigned_batch.strip():
+                    matches_class = False
                 
             if not (assigned_dept or assigned_yr or assigned_sec or assigned_batch) or not matches_class:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied. You are not assigned as mentor for this student."
+                    detail="Mentor is not assigned to this student"
                 )
 
     # 2. Fetch related details

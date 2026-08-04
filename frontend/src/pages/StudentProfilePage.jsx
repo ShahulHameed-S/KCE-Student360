@@ -83,14 +83,18 @@ export const StudentProfilePage = () => {
             throw new Error("Student register number not resolved.");
           }
 
-          // 3. Fetch performance & approvals using registerNo
-          const [performanceData, approvalsData] = await Promise.all([
-            studentService.getStudentPerformance(registerNo).catch((err) => {
-              console.warn("Performance API failed, falling back to mock:", err);
-              return mockPerformance[registerNo] || [];
-            }),
-            mentorService.getAllApprovals().catch(() => [])
+          // 3. Fetch performance & approvals safely using Promise.allSettled
+          const [performanceResult, approvalsResult] = await Promise.allSettled([
+            studentService.getStudentPerformance(registerNo),
+            mentorService.getAllApprovals()
           ]);
+
+          const performanceData = performanceResult.status === "fulfilled" && performanceResult.value
+            ? performanceResult.value
+            : (mockPerformance[registerNo] || []);
+          const approvalsData = approvalsResult.status === "fulfilled" && approvalsResult.value
+            ? approvalsResult.value
+            : [];
 
           console.log("Student detail data:", profileData);
           console.log("Student performance data:", performanceData);
