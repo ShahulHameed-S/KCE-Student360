@@ -73,7 +73,7 @@ export const StudentListPage = () => {
       render: (row) => (
         <div className="flex items-center justify-center space-x-2">
           <Link
-            to={`/students/${row.id}`}
+            to={`/students/${row.register_no || row.registerNo || row.id}`}
             className="text-xs font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
           >
             <UserSquare2 size={13} />

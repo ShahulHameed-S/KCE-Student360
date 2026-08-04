@@ -197,7 +197,7 @@ export const FacultyChatbot = () => {
                                   </td>
                                   <td className="px-2 py-1 text-center">
                                     <Link
-                                      to={`/students/${student.id || student.student_id}`}
+                                      to={`/students/${student.register_no || student.registerNo || student.id || student.student_id}`}
                                       onClick={() => setIsOpen(false)} // Close chatbot on navigate
                                       className="text-[#C76F2B] hover:text-[#A8561F] hover:underline"
                                     >

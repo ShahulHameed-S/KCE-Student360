@@ -186,7 +186,7 @@ export const RecommendationPage = () => {
                       <td className="px-6 py-3 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center space-x-2">
                           <Link
-                            to={`/students/${rec.id}`}
+                            to={`/students/${rec.register_no || rec.registerNo || rec.id}`}
                             className="text-[11px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
                           >
                             <UserSquare2 size={12} />

@@ -95,23 +95,79 @@ async def recommend_students(
     return get_student_recommendations(db, domain, limit)
 
 @router.get("/{id_or_register_no}")
-async def get_student_by_id(id_or_register_no: str, db: Session = Depends(get_db)):
+async def get_student_by_id(
+    id_or_register_no: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Retrieves full profile details for a student.
-    Accepts student ID (integer) or register_no.
+    Accepts student ID (integer), user_id, or register_no.
     """
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+    
     # 1. Fetch student
     student = None
-    if id_or_register_no.isdigit():
+    if str(id_or_register_no).isdigit():
         student = db.query(Student).filter(Student.id == int(id_or_register_no)).first()
+        if not student:
+            student = db.query(Student).filter(Student.user_id == int(id_or_register_no)).first()
+            
     if not student:
-        student = db.query(Student).filter(Student.register_no == id_or_register_no).first()
+        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(str(id_or_register_no))).first()
 
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Student '{id_or_register_no}' not found"
         )
+
+    # 2. Access control check
+    if current_user.role == "mentor":
+        is_assigned = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+        
+        if not is_assigned:
+            from app.models.profile import UserProfile
+            import json
+            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+            assigned_dept = None
+            assigned_yr = None
+            assigned_sec = None
+            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+                try:
+                    bio_data = json.loads(profile.bio)
+                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+                except Exception:
+                    pass
+                    
+            if not assigned_dept:
+                from app.models.student import FacultyProfile
+                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+                if fp:
+                    assigned_dept = fp.department
+            
+            matches_class = True
+            if assigned_dept and (not student.department or student.department.lower() != assigned_dept.lower()):
+                matches_class = False
+            if assigned_yr and student.year != assigned_yr:
+                matches_class = False
+            if assigned_sec and (not student.section or student.section.lower() != assigned_sec.lower()):
+                matches_class = False
+            if assigned_batch and (not student.batch or student.batch.lower() != assigned_batch.lower()):
+                matches_class = False
+                
+            if not (assigned_dept or assigned_yr or assigned_sec or assigned_batch) or not matches_class:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. You are not assigned as mentor for this student."
+                )
 
     # 2. Fetch related details
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
@@ -287,20 +343,77 @@ async def get_student_by_id(id_or_register_no: str, db: Session = Depends(get_db
     return response_data
 
 @router.get("/{id_or_register_no}/performance")
-async def get_student_performance(id_or_register_no: str, db: Session = Depends(get_db)):
+async def get_student_performance(
+    id_or_register_no: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Retrieves detailed test history logs and analytics averages for a student."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+    
     # 1. Fetch student
     student = None
-    if id_or_register_no.isdigit():
+    if str(id_or_register_no).isdigit():
         student = db.query(Student).filter(Student.id == int(id_or_register_no)).first()
+        if not student:
+            student = db.query(Student).filter(Student.user_id == int(id_or_register_no)).first()
+            
     if not student:
-        student = db.query(Student).filter(Student.register_no == id_or_register_no).first()
+        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(str(id_or_register_no))).first()
 
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Student '{id_or_register_no}' not found"
         )
+
+    # 2. Access control check
+    if current_user.role == "mentor":
+        is_assigned = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+        
+        if not is_assigned:
+            from app.models.profile import UserProfile
+            import json
+            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+            assigned_dept = None
+            assigned_yr = None
+            assigned_sec = None
+            assigned_batch = None
+            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+                try:
+                    bio_data = json.loads(profile.bio)
+                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+                except Exception:
+                    pass
+                    
+            if not assigned_dept:
+                from app.models.student import FacultyProfile
+                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+                if fp:
+                    assigned_dept = fp.department
+            
+            matches_class = True
+            if assigned_dept and (not student.department or student.department.lower() != assigned_dept.lower()):
+                matches_class = False
+            if assigned_yr and student.year != assigned_yr:
+                matches_class = False
+            if assigned_sec and (not student.section or student.section.lower() != assigned_sec.lower()):
+                matches_class = False
+            if assigned_batch and (not student.batch or student.batch.lower() != assigned_batch.lower()):
+                matches_class = False
+                
+            if not (assigned_dept or assigned_yr or assigned_sec or assigned_batch) or not matches_class:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied. You are not assigned as mentor for this student."
+                )
 
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
     scores = db.query(AssessmentScore).filter(

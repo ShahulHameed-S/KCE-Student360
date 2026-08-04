@@ -223,9 +223,41 @@ async def get_mentor_students(
         if assigned_student_ids:
             students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
         else:
-            fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-            if fp:
-                students = db.query(Student).filter(Student.department == fp.department).all()
+            from app.models.profile import UserProfile
+            import json
+            
+            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+            assigned_dept = None
+            assigned_yr = None
+            assigned_sec = None
+            assigned_batch = None
+            
+            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+                try:
+                    bio_data = json.loads(profile.bio)
+                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+                except Exception:
+                    pass
+                    
+            if not assigned_dept:
+                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+                if fp:
+                    assigned_dept = fp.department
+            
+            if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+                query = db.query(Student)
+                if assigned_dept:
+                    query = query.filter(Student.department.ilike(assigned_dept))
+                if assigned_yr:
+                    query = query.filter(Student.year.ilike(assigned_yr))
+                if assigned_sec:
+                    query = query.filter(Student.section.ilike(assigned_sec))
+                if assigned_batch:
+                    query = query.filter(Student.batch.ilike(assigned_batch))
+                students = query.all()
             else:
                 students = []
 
@@ -257,3 +289,79 @@ async def get_mentor_students(
             "weakestDomain": analytics_obj.weakest_domain if analytics_obj else "DBMS"
         })
     return res_list
+
+
+@router.get("/debug/students")
+async def mentor_debug_students(
+    current_user: User = Depends(RoleRequired(["mentor", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint for mentors to check assigned student records."""
+    from app.models.student import FacultyProfile
+    from app.models.profile import UserProfile
+    import json
+    
+    fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    
+    assigned_student_ids = get_assigned_student_ids(db, current_user.id)
+    
+    assigned_dept = None
+    assigned_yr = None
+    assigned_sec = None
+    assigned_batch = None
+    
+    if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+        try:
+            bio_data = json.loads(profile.bio)
+            assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+            assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+            assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+            assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+        except Exception:
+            pass
+            
+    if not assigned_dept and fp:
+        assigned_dept = fp.department
+        
+    if assigned_student_ids:
+        students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+    elif assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+        query = db.query(Student)
+        if assigned_dept:
+            query = query.filter(Student.department.ilike(assigned_dept))
+        if assigned_yr:
+            query = query.filter(Student.year.ilike(assigned_yr))
+        if assigned_sec:
+            query = query.filter(Student.section.ilike(assigned_sec))
+        if assigned_batch:
+            query = query.filter(Student.batch.ilike(assigned_batch))
+        students = query.all()
+    else:
+        students = []
+        
+    serialized_students = []
+    for s in students:
+        serialized_students.append({
+            "student_id": s.id,
+            "register_no": s.register_no,
+            "name": s.name,
+            "department": s.department,
+            "year": s.year,
+            "section": s.section,
+            "batch": s.batch
+        })
+        
+    return {
+        "mentor_user_id": current_user.id,
+        "mentor_email": current_user.email,
+        "assignments_count": len(assigned_student_ids),
+        "class_assignment": {
+            "department": assigned_dept or "",
+            "year": assigned_yr or "",
+            "section": assigned_sec or "",
+            "batch": assigned_batch or ""
+        },
+        "students_returned_count": len(students),
+        "students": serialized_students
+    }

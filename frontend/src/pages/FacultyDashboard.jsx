@@ -1953,13 +1953,13 @@ export const FacultyDashboard = () => {
                               <td className="py-2.5 px-4 text-center">
                                 <div className="flex justify-center gap-1.5">
                                   <Link
-                                    to={`/students/${student.id}`}
+                                    to={`/students/${student.register_no || student.registerNo || student.id}`}
                                     className="px-2 py-1 text-[9px] font-black uppercase bg-[#214C55] text-white hover:bg-[#163941] tracking-wider"
                                   >
                                     View Profile
                                   </Link>
                                   <Link
-                                    to={`/students/${student.id}`}
+                                    to={`/students/${student.register_no || student.registerNo || student.id}`}
                                     className="px-2 py-1 text-[9px] font-black uppercase bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white tracking-wider"
                                   >
                                     Performance
@@ -2033,7 +2033,7 @@ export const FacultyDashboard = () => {
                               <span className={idx === 0 ? "text-[#D97706]" : "text-[#6B7280]"}>{idx + 1}</span>
                             </td>
                             <td className="py-3 px-3 text-[#214C55]">
-                              <Link to={`/students/${student.id}`} className="hover:text-[#C76F2B] hover:underline">
+                              <Link to={`/students/${student.register_no || student.registerNo || student.id}`} className="hover:text-[#C76F2B] hover:underline">
                                 {student.name}
                               </Link>
                             </td>
@@ -2207,7 +2207,7 @@ export const FacultyDashboard = () => {
                         needyStudents.slice(0, 5).map((st) => (
                           <tr key={st.id} className="hover:bg-[#F7F7F7] transition-colors">
                             <td className="py-2 px-3 text-[#214C55]">
-                              <Link to={`/students/${st.id}`} className="hover:underline font-black">{st.name}</Link>
+                              <Link to={`/students/${st.register_no || st.registerNo || st.id}`} className="hover:underline font-black">{st.name}</Link>
                               <span className="block text-[9px] text-[#6B7280] mt-0.5">{st.register_no}</span>
                             </td>
                             <td className="py-2 px-3 text-center">
@@ -5358,7 +5358,7 @@ export const FacultyDashboard = () => {
                       {readyStudents.map((st) => (
                         <tr key={st.id} className="hover:bg-[#F7F7F7] transition-colors">
                           <td className="py-2 px-3 text-[#214C55]">
-                            <Link to={`/students/${st.id}`} className="hover:underline font-black">{st.name}</Link>
+                            <Link to={`/students/${st.register_no || st.registerNo || st.id}`} className="hover:underline font-black">{st.name}</Link>
                             <span className="block text-[9px] text-[#6B7280] mt-0.5">{st.register_no}</span>
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -5394,7 +5394,7 @@ export const FacultyDashboard = () => {
                       {needTraining.slice(0, 5).map((st) => (
                         <tr key={st.id} className="hover:bg-[#F7F7F7] transition-colors">
                           <td className="py-2 px-3 text-[#214C55]">
-                            <Link to={`/students/${st.id}`} className="hover:underline font-black">{st.name}</Link>
+                            <Link to={`/students/${st.register_no || st.registerNo || st.id}`} className="hover:underline font-black">{st.name}</Link>
                             <span className="block text-[9px] text-[#6B7280] mt-0.5">{st.register_no}</span>
                           </td>
                           <td className="py-2 px-3 text-center">

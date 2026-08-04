@@ -11,11 +11,31 @@ router = APIRouter()
 
 def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
     """Helper to convert UserProfile and User relation into compatible ProfileResponse structures."""
+    import json
+    
     # Extra role details helper
     extra_details = {}
     department = profile.department or ""
     github_url = ""
     linkedin_url = ""
+    
+    bio_text = profile.bio or ""
+    bio_extra = {}
+    if bio_text.startswith("{") and bio_text.endswith("}"):
+        try:
+            bio_data = json.loads(bio_text)
+            bio_extra = {
+                "assignedDepartment": bio_data.get("assignedDepartment"),
+                "assignedYear": bio_data.get("assignedYear"),
+                "assignedSection": bio_data.get("assignedSection"),
+                "assignedBatch": bio_data.get("assignedBatch"),
+                "year": bio_data.get("assignedYear"),
+                "section": bio_data.get("assignedSection"),
+                "department": bio_data.get("assignedDepartment")
+            }
+            bio_text = bio_data.get("bio", "")
+        except Exception:
+            pass
     
     if user.role == "student":
         student = user.student_profile
@@ -56,6 +76,8 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
         extra_details = {
             "designation": f.designation
         }
+    elif user.role == "mentor":
+        extra_details = bio_extra
 
     img_path = profile.profile_image or ""
 
@@ -70,7 +92,7 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
         "location": profile.location or "Coimbatore",
         "profile_image": img_path,
         "profileImage": img_path,
-        "bio": profile.bio or "",
+        "bio": bio_text,
         "github_url": github_url,
         "githubUrl": github_url,
         "linkedin_url": linkedin_url,
@@ -120,7 +142,31 @@ async def update_my_profile(
         profile.department = payload.department
     if payload.location is not None:
         profile.location = payload.location
-    if payload.bio is not None:
+
+    if current_user.role != "student" and (payload.bio is not None or payload.year is not None or payload.section is not None or payload.department is not None):
+        import json
+        existing_bio = profile.bio or ""
+        existing_extra = {}
+        if existing_bio.startswith("{") and existing_bio.endswith("}"):
+            try:
+                existing_extra = json.loads(existing_bio)
+            except Exception:
+                pass
+        
+        bio_text_val = existing_extra.get("bio", existing_bio)
+        
+        if payload.bio is not None:
+            bio_text_val = payload.bio
+        if payload.year is not None:
+            existing_extra["assignedYear"] = payload.year
+        if payload.section is not None:
+            existing_extra["assignedSection"] = payload.section
+        if payload.department is not None:
+            existing_extra["assignedDepartment"] = payload.department
+            
+        existing_extra["bio"] = bio_text_val
+        profile.bio = json.dumps(existing_extra)
+    elif payload.bio is not None:
         profile.bio = payload.bio
 
     # Sync to Student profile if role is student
