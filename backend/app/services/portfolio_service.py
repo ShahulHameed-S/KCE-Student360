@@ -54,6 +54,20 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
     custom_obj = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
     ai_sum_obj = db.query(AISummary).filter(AISummary.student_id == student.id).first()
 
+    # Safe debug in development logging
+    import os
+    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or True:
+        has_cust = custom_obj is not None
+        cust_student_id = custom_obj.student_id if has_cust else "None"
+        cgpa_in_json = "None"
+        if has_cust and custom_obj.section_visibility_json:
+            try:
+                js = json.loads(custom_obj.section_visibility_json)
+                cgpa_in_json = js.get("hero", {}).get("cgpa", "None") if isinstance(js, dict) else "None"
+            except Exception:
+                pass
+        print(f"[DEBUG_PUBLIC_PORTFOLIO] identifier: {register_no} | student.id: {student.id} | student.register_no: {student.register_no} | student.user_id: {student.user_id} | customization_exists: {has_cust} | cust.student_id: {cust_student_id} | cgpa_in_json: {cgpa_in_json}")
+
     # Submissions (Filter out rejected items, include pending clearly marked or approved verified)
     projects = db.query(StudentProject).filter(
         StudentProject.student_id == student.id,
@@ -570,7 +584,8 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "ai_summary": ai_sum_dict,
         "aiSummary": ai_sum_dict,
         "profile_image": profile_image or "",
-        "profileImage": profile_image or ""
+        "profileImage": profile_image or "",
+        "cgpa": cgpa_str
     }
 
     return portfolio

@@ -63,8 +63,8 @@ class LinksCustomization(BaseModel):
     resume: Optional[str] = ""
 
 class SectionItem(BaseModel):
-    visible: bool = True
-    title: str
+    visible: Optional[bool] = True
+    title: Optional[str] = ""
 
 class SectionsCustomization(BaseModel):
     about: Optional[SectionItem] = None
@@ -104,6 +104,10 @@ async def get_my_portfolio_customization(
         )
 
     student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        student = db.query(Student).filter(Student.email == current_user.email).first()
+    if not student:
+        student = db.query(Student).filter(Student.register_no == current_user.username).first()
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -236,6 +240,53 @@ async def get_my_portfolio_customization(
 
     return defaults
 
+@router.get("/portfolio/debug-self")
+async def debug_self(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Temporary protected debug endpoint for active student verification."""
+    if current_user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only students can access debug-self."
+        )
+    
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        student = db.query(Student).filter(Student.email == current_user.email).first()
+    if not student:
+        student = db.query(Student).filter(Student.register_no == current_user.username).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found."
+        )
+
+    cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
+    
+    raw_visibility = {}
+    if cust and cust.section_visibility_json:
+        try:
+            raw_visibility = json.loads(cust.section_visibility_json)
+        except Exception:
+            pass
+
+    hero_cgpa = raw_visibility.get("hero", {}).get("cgpa", "") if isinstance(raw_visibility, dict) else ""
+    if not hero_cgpa and isinstance(raw_visibility, dict):
+        hero_cgpa = raw_visibility.get("customCGPA") or raw_visibility.get("customCgpa") or raw_visibility.get("cgpa") or ""
+
+    return {
+        "user_id": current_user.id,
+        "email": current_user.email,
+        "student_id": student.id,
+        "register_no": student.register_no,
+        "customization_exists": cust is not None,
+        "customization_student_id": cust.student_id if cust else None,
+        "hero_cgpa": hero_cgpa,
+        "raw_section_visibility_json": raw_visibility
+    }
+
 @router.put("/portfolio/customization")
 async def update_my_portfolio_customization(
     payload: CustomizationPayload,
@@ -250,6 +301,10 @@ async def update_my_portfolio_customization(
         )
 
     student = db.query(Student).filter(Student.user_id == current_user.id).first()
+    if not student:
+        student = db.query(Student).filter(Student.email == current_user.email).first()
+    if not student:
+        student = db.query(Student).filter(Student.register_no == current_user.username).first()
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
