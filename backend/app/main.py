@@ -12,7 +12,8 @@ from app.utils.response_utils import error_response
 # Import routers skeleton
 from app.routers import (
     auth, students, scores, leaderboard, mentor,
-    submissions, resume, profile, portfolio, ai, admin
+    submissions, resume, profile, portfolio, ai, admin,
+    student_portfolio
 )
 
 app = FastAPI(
@@ -69,6 +70,7 @@ app.include_router(scores.router, prefix="/scores", tags=["Scores"])
 app.include_router(leaderboard.router, prefix="/leaderboard", tags=["Leaderboard"])
 app.include_router(mentor.router, prefix="/mentor", tags=["Mentor Approval"])
 app.include_router(submissions.router, prefix="/student", tags=["Student Submissions"])
+app.include_router(student_portfolio.router, prefix="/student", tags=["Student Portfolio Customization"])
 app.include_router(resume.router, prefix="/students", tags=["Student Resumes"])
 app.include_router(profile.router, prefix="/users", tags=["User Profiles"])
 app.include_router(portfolio.router, prefix="/portfolio", tags=["Public Portfolios"])

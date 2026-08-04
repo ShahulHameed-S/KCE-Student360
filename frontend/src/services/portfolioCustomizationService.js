@@ -102,6 +102,25 @@ export const portfolioCustomizationService = {
       console.error("Error saving portfolio customization:", error);
       throw error;
     }
+  },
+
+  getStudentPortfolioCustomization: async () => {
+    try {
+      const response = await api.get(`/student/portfolio/customization`);
+      return response.data;
+    } catch (error) {
+      console.error("Error in getStudentPortfolioCustomization:", error);
+      throw error;
+    }
+  },
+
+  saveStudentPortfolioCustomization: async (data) => {
+    try {
+      const response = await api.put(`/student/portfolio/customization`, data);
+      return response.data;
+    } catch (error) {
+      console.error("Error in saveStudentPortfolioCustomization:", error);
+      throw error;
+    }
   }
 };
-

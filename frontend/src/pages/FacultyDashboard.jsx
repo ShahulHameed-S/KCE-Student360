@@ -1516,7 +1516,17 @@ export const FacultyDashboard = () => {
           }
 
           // Fetch local customization & user submissions
-          const customization = await portfolioCustomizationService.getPortfolioCustomization(profile.register_no || registerNo);
+          let customization = {};
+          try {
+            if (user?.role === "student") {
+              customization = await portfolioCustomizationService.getStudentPortfolioCustomization();
+            } else {
+              customization = await portfolioCustomizationService.getPortfolioCustomization(profile.register_no || registerNo);
+            }
+          } catch (custErr) {
+            console.warn("Could not load customization:", custErr);
+          }
+
           const userSubmissions = studentSubmissionService.getUserSubmissions(profile.register_no || registerNo);
           
           // Fetch resume data
@@ -1566,6 +1576,7 @@ export const FacultyDashboard = () => {
 
           // Pre-fill customization form
           setCustomizationForm({
+            // Legacy fallbacks
             headline: customization.headline || mergedProfile.headline || "",
             about_me: customization.about_me || mergedProfile.about_me || "",
             career_objective: customization.career_objective || mergedProfile.career_objective || "",
@@ -1589,6 +1600,57 @@ export const FacultyDashboard = () => {
               showAcademicHighlights: true,
               showContactLinks: true,
               showResume: true
+            },
+
+            // New structured configuration
+            hero: {
+              welcomeText: customization.hero?.welcomeText || "WELCOME TO MY PORTFOLIO",
+              displayName: customization.hero?.displayName || mergedProfile.name || "",
+              headline: customization.hero?.headline || customization.headline || mergedProfile.headline || "",
+              intro: customization.hero?.intro || customization.about_me || mergedProfile.about_me || "",
+              avatarInitials: customization.hero?.avatarInitials || "",
+              location: customization.hero?.location || customization.location || mergedProfile.location || "",
+              cgpa: customization.hero?.cgpa !== undefined ? customization.hero.cgpa : (mergedProfile.cgpa !== undefined ? String(mergedProfile.cgpa) : ""),
+              showCgpa: customization.hero?.showCgpa !== undefined ? customization.hero.showCgpa : true,
+              showEmail: customization.hero?.showEmail !== undefined ? customization.hero.showEmail : true,
+              showPhone: customization.hero?.showPhone !== undefined ? customization.hero.showPhone : true,
+              showRegisterNo: customization.hero?.showRegisterNo !== undefined ? customization.hero.showRegisterNo : true,
+              showLocation: customization.hero?.showLocation !== undefined ? customization.hero.showLocation : true
+            },
+            skillsStructured: {
+              technical: customization.skillsCategorized?.technical ? customization.skillsCategorized.technical.join(", ") : (Array.isArray(customization.skills) ? customization.skills.join(", ") : ""),
+              programming: customization.skillsCategorized?.programming ? customization.skillsCategorized.programming.join(", ") : "",
+              frameworks: customization.skillsCategorized?.frameworks ? customization.skillsCategorized.frameworks.join(", ") : "",
+              databases: customization.skillsCategorized?.databases ? customization.skillsCategorized.databases.join(", ") : "",
+              aiMl: customization.skillsCategorized?.aiMl ? customization.skillsCategorized.aiMl.join(", ") : "",
+              softSkills: customization.skillsCategorized?.softSkills ? customization.skillsCategorized.softSkills.join(", ") : "",
+              areasOfInterest: customization.skillsCategorized?.areasOfInterest ? customization.skillsCategorized.areasOfInterest.join(", ") : ""
+            },
+            links: {
+              github: customization.links?.github || customization.github_url || mergedProfile.github_url || "",
+              linkedin: customization.links?.linkedin || customization.linkedin_url || mergedProfile.linkedin_url || "",
+              leetcode: customization.links?.leetcode || "",
+              hackerrank: customization.links?.hackerrank || "",
+              website: customization.links?.website || "",
+              resume: customization.links?.resume || ""
+            },
+            sections: customization.sections || {
+              about: { visible: true, title: "About" },
+              performance: { visible: true, title: "Performance" },
+              resume: { visible: true, title: "Resume" },
+              projects: { visible: true, title: "Projects" },
+              achievements: { visible: true, title: "Achievements" },
+              contact: { visible: true, title: "Contact" },
+              certifications: { visible: true, title: "Certifications" },
+              internships: { visible: true, title: "Internships" },
+              hackathons: { visible: true, title: "Hackathons" },
+              publications: { visible: true, title: "Publications" },
+              workshops: { visible: true, title: "Workshops" }
+            },
+            music: customization.music || {
+              visible: false,
+              title: "",
+              artist: ""
             }
           });
         } catch (err) {
@@ -2375,38 +2437,90 @@ export const FacultyDashboard = () => {
 
     const handleSaveCustomization = async (e) => {
       e.preventDefault();
+      setCustomizationMessage("");
       try {
-        const res = await portfolioCustomizationService.savePortfolioCustomization(activeProfile.register_no, {
-          headline: customizationForm.headline,
-          about_me: customizationForm.about_me,
-          career_objective: customizationForm.career_objective,
-          skills: customizationForm.skills.split(",").map(s => s.trim()).filter(Boolean),
-          github_url: customizationForm.github_url,
-          linkedin_url: customizationForm.linkedin_url,
-          email: customizationForm.email,
-          phone: customizationForm.phone,
-          location: customizationForm.location,
-          theme: customizationForm.theme,
-          visibility: customizationForm.visibility
-        });
-        setCustomizationMessage(res.message);
-        setStudentProfile(prev => ({
-          ...prev,
-          headline: customizationForm.headline,
-          about_me: customizationForm.about_me,
-          career_objective: customizationForm.career_objective,
-          skills: customizationForm.skills.split(",").map(s => s.trim()).filter(Boolean),
-          github_url: customizationForm.github_url,
-          linkedin_url: customizationForm.linkedin_url,
-          email: customizationForm.email,
-          phone: customizationForm.phone,
-          location: customizationForm.location,
-          theme: customizationForm.theme,
-          visibility: customizationForm.visibility
-        }));
+        if (user?.role === "student") {
+          const payload = {
+            hero: {
+              welcomeText: customizationForm.hero.welcomeText,
+              displayName: customizationForm.hero.displayName,
+              headline: customizationForm.hero.headline,
+              intro: customizationForm.hero.intro,
+              avatarInitials: customizationForm.hero.avatarInitials,
+              location: customizationForm.hero.location,
+              cgpa: customizationForm.hero.cgpa,
+              showCgpa: customizationForm.hero.showCgpa,
+              showEmail: customizationForm.hero.showEmail,
+              showPhone: customizationForm.hero.showPhone,
+              showRegisterNo: customizationForm.hero.showRegisterNo,
+              showLocation: customizationForm.hero.showLocation
+            },
+            skills: {
+              technical: customizationForm.skillsStructured.technical.split(",").map(s => s.trim()).filter(Boolean),
+              programming: customizationForm.skillsStructured.programming.split(",").map(s => s.trim()).filter(Boolean),
+              frameworks: customizationForm.skillsStructured.frameworks.split(",").map(s => s.trim()).filter(Boolean),
+              databases: customizationForm.skillsStructured.databases.split(",").map(s => s.trim()).filter(Boolean),
+              aiMl: customizationForm.skillsStructured.aiMl.split(",").map(s => s.trim()).filter(Boolean),
+              softSkills: customizationForm.skillsStructured.softSkills.split(",").map(s => s.trim()).filter(Boolean),
+              areasOfInterest: customizationForm.skillsStructured.areasOfInterest.split(",").map(s => s.trim()).filter(Boolean)
+            },
+            links: {
+              github: customizationForm.links.github,
+              linkedin: customizationForm.links.linkedin,
+              leetcode: customizationForm.links.leetcode,
+              hackerrank: customizationForm.links.hackerrank,
+              website: customizationForm.links.website,
+              resume: customizationForm.links.resume
+            },
+            sections: customizationForm.sections,
+            music: customizationForm.music
+          };
+
+          const res = await portfolioCustomizationService.saveStudentPortfolioCustomization(payload);
+          setCustomizationMessage(res.message || "Portfolio updated successfully");
+          setStudentProfile(prev => ({
+            ...prev,
+            name: customizationForm.hero.displayName,
+            headline: customizationForm.hero.headline,
+            about_me: customizationForm.hero.intro,
+            location: customizationForm.hero.location,
+            cgpa: customizationForm.hero.cgpa ? parseFloat(customizationForm.hero.cgpa) : prev.cgpa
+          }));
+        } else {
+          const res = await portfolioCustomizationService.savePortfolioCustomization(activeProfile.register_no, {
+            headline: customizationForm.headline,
+            about_me: customizationForm.about_me,
+            career_objective: customizationForm.career_objective,
+            skills: customizationForm.skills.split(",").map(s => s.trim()).filter(Boolean),
+            github_url: customizationForm.github_url,
+            linkedin_url: customizationForm.linkedin_url,
+            email: customizationForm.email,
+            phone: customizationForm.phone,
+            location: customizationForm.location,
+            theme: customizationForm.theme,
+            visibility: customizationForm.visibility
+          });
+          setCustomizationMessage(res.message);
+          setStudentProfile(prev => ({
+            ...prev,
+            headline: customizationForm.headline,
+            about_me: customizationForm.about_me,
+            career_objective: customizationForm.career_objective,
+            skills: customizationForm.skills.split(",").map(s => s.trim()).filter(Boolean),
+            github_url: customizationForm.github_url,
+            linkedin_url: customizationForm.linkedin_url,
+            email: customizationForm.email,
+            phone: customizationForm.phone,
+            location: customizationForm.location,
+            theme: customizationForm.theme,
+            visibility: customizationForm.visibility
+          }));
+        }
         setTimeout(() => setCustomizationMessage(""), 4000);
       } catch (err) {
         console.error(err);
+        setCustomizationMessage(err.response?.data?.detail || "Unable to update portfolio. Please retry.");
+        setTimeout(() => setCustomizationMessage(""), 5000);
       }
     };
 
@@ -3032,241 +3146,717 @@ export const FacultyDashboard = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomization} className="space-y-6 font-bold">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Portfolio Headline</label>
-                  <input
-                    required
-                    value={customizationForm.headline}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, headline: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
-                    placeholder="e.g. AI & DS Student | Full Stack Developer"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Skills (comma-separated)</label>
-                  <input
-                    required
-                    value={customizationForm.skills}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, skills: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
-                    placeholder="e.g. React, Node.js, Python, PostgreSQL"
-                  />
-                </div>
+            {customizationMessage && (
+              <div className={`p-3 text-xs font-bold text-center border ${
+                customizationMessage.includes("success") || customizationMessage.includes("updated")
+                  ? "bg-green-50 text-green-700 border-green-200" 
+                  : "bg-red-50 text-red-700 border-red-200"
+              }`}>
+                {customizationMessage}
               </div>
+            )}
 
-              <div>
-                <label className="block text-[10px] uppercase font-bold text-[#214C55]">About Me</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={customizationForm.about_me}
-                  onChange={(e) => setCustomizationForm({ ...customizationForm, about_me: e.target.value })}
-                  className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-sans"
-                  placeholder="Tell visitors about your background, projects, and programming goals..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] uppercase font-bold text-[#214C55]">Career Objective</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={customizationForm.career_objective}
-                  onChange={(e) => setCustomizationForm({ ...customizationForm, career_objective: e.target.value })}
-                  className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-sans"
-                  placeholder="Describe your near-term professional goals and what you hope to contribute..."
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">GitHub URL</label>
-                  <input
-                    value={customizationForm.github_url}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, github_url: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
-                    placeholder="https://github.com/username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">LinkedIn URL</label>
-                  <input
-                    value={customizationForm.linkedin_url}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, linkedin_url: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
-                    placeholder="https://linkedin.com/in/username"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Email Address</label>
-                  <input
-                    required
-                    type="email"
-                    value={customizationForm.email}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, email: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
-                    placeholder="name@college.com"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Phone Number</label>
-                  <input
-                    value={customizationForm.phone}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, phone: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
-                    placeholder="+91 9876543210"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Location</label>
-                  <input
-                    value={customizationForm.location}
-                    onChange={(e) => setCustomizationForm({ ...customizationForm, location: e.target.value })}
-                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
-                    placeholder="Coimbatore, Tamil Nadu"
-                  />
-                </div>
-              </div>
-
-              {/* Visibility checklist */}
-              <div className="space-y-2 border-t border-[#E5E5E5] pt-4">
-                <label className="block text-[10px] uppercase font-bold text-[#214C55]">Section Visibility Settings</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-1">
-                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationForm.visibility.showProjects}
-                      onChange={(e) => setCustomizationForm({
-                        ...customizationForm,
-                        visibility: { ...customizationForm.visibility, showProjects: e.target.checked }
-                      })}
-                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                    />
-                    <span>Show Projects</span>
-                  </label>
-                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationForm.visibility.showCertifications}
-                      onChange={(e) => setCustomizationForm({
-                        ...customizationForm,
-                        visibility: { ...customizationForm.visibility, showCertifications: e.target.checked }
-                      })}
-                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                    />
-                    <span>Show Certifications</span>
-                  </label>
-                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationForm.visibility.showAchievements}
-                      onChange={(e) => setCustomizationForm({
-                        ...customizationForm,
-                        visibility: { ...customizationForm.visibility, showAchievements: e.target.checked }
-                      })}
-                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                    />
-                    <span>Show Achievements</span>
-                  </label>
-                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationForm.visibility.showAcademicHighlights}
-                      onChange={(e) => setCustomizationForm({
-                        ...customizationForm,
-                        visibility: { ...customizationForm.visibility, showAcademicHighlights: e.target.checked }
-                      })}
-                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                    />
-                    <span>Show Academic Metrics</span>
-                  </label>
-                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={customizationForm.visibility.showContactLinks}
-                      onChange={(e) => setCustomizationForm({
-                        ...customizationForm,
-                        visibility: { ...customizationForm.visibility, showContactLinks: e.target.checked }
-                      })}
-                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                    />
-                    <span>Show Contact Links</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* Resume Settings inside Portfolio Customization */}
-              <div className="bg-slate-50 border border-[#D1D5DB] p-4 space-y-3">
-                <h4 className="text-[10px] uppercase font-bold text-[#214C55] tracking-wide border-b border-[#D1D5DB] pb-1.5 font-sans">Resume Integration Settings</h4>
-                
-                <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!customizationForm.visibility?.showResume}
-                    onChange={(e) => setCustomizationForm({
-                      ...customizationForm,
-                      visibility: { ...customizationForm.visibility, showResume: e.target.checked }
-                    })}
-                    className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
-                  />
-                  <span>Show Resume in Portfolio</span>
-                </label>
-
-                {resumeData?.fileName ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold pt-1">
-                    <div className="sm:col-span-2">
-                      <span className="block text-[9px] uppercase font-bold text-[#6B7280]">Active Resume File</span>
-                      <span className="block text-slate-700 font-bold mt-1 text-[11px] truncate">{resumeData.fileName}</span>
-                    </div>
+            {user?.role === "student" ? (
+              /* Student Customization Form */
+              <form onSubmit={handleSaveCustomization} className="space-y-6 font-bold text-xs text-[#214C55]">
+                {/* 1. Hero Details */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">1. Hero Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Resume Section Title</label>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Welcome Tag Text</label>
                       <input
                         type="text"
-                        value={customizationForm.resumeSectionTitle || ""}
-                        onChange={(e) => setCustomizationForm({ ...customizationForm, resumeSectionTitle: e.target.value })}
-                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white font-bold"
-                        placeholder="e.g. My Resume"
+                        value={customizationForm.hero.welcomeText}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, welcomeText: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. WELCOME TO MY PORTFOLIO"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Resume Button Label</label>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Display Name</label>
                       <input
                         type="text"
-                        value={customizationForm.resumeButtonLabel || ""}
-                        onChange={(e) => setCustomizationForm({ ...customizationForm, resumeButtonLabel: e.target.value })}
-                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white font-bold"
-                        placeholder="e.g. View Resume"
+                        value={customizationForm.hero.displayName}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, displayName: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. SUMANTRAJ B"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Main Headline</label>
+                      <input
+                        type="text"
+                        value={customizationForm.hero.headline}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, headline: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. AI & DS Student | Java Full Stack Developer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Avatar Initials (e.g. SB)</label>
+                      <input
+                        type="text"
+                        maxLength={3}
+                        value={customizationForm.hero.avatarInitials}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, avatarInitials: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white uppercase font-mono"
+                        placeholder="e.g. SB"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Short Intro Paragraph</label>
+                      <textarea
+                        rows={3}
+                        value={customizationForm.hero.intro}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, intro: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white font-sans"
+                        placeholder="Tell recruiters about yourself..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Location</label>
+                      <input
+                        type="text"
+                        value={customizationForm.hero.location}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, location: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. Coimbatore, Tamil Nadu"
                       />
                     </div>
                   </div>
-                ) : (
-                  <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider bg-orange-50 p-2 border border-orange-200">
-                    Upload resume from My Resume section first.
-                  </p>
-                )}
-              </div>
+                  {/* Privacy Toggles */}
+                  <div className="border-t border-[#E5E5E5] pt-3 space-y-2">
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55] mb-1">Privacy & Toggles</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.hero.showEmail}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            hero: { ...customizationForm.hero, showEmail: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Show Email</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.hero.showPhone}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            hero: { ...customizationForm.hero, showPhone: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Show Phone</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.hero.showRegisterNo}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            hero: { ...customizationForm.hero, showRegisterNo: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Show Register No</span>
+                      </label>
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.hero.showLocation}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            hero: { ...customizationForm.hero, showLocation: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Show Location</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
 
-              {/* Form buttons */}
-              <div className="flex gap-3 pt-4 border-t border-[#E5E5E5]">
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
-                >
-                  Save Customization
-                </button>
-                <Link
-                  to={`/portfolio/${activeProfile.register_no}`}
-                  className="px-6 py-2.5 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-xs font-bold uppercase transition-all rounded-none block text-center"
-                >
-                  Preview Portfolio
-                </Link>
-              </div>
-            </form>
+                {/* 2. Academic Details */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">2. Academic Details</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Custom CGPA (0.0 to 10.0)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="10"
+                        value={customizationForm.hero.cgpa}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          hero: { ...customizationForm.hero, cgpa: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white font-mono"
+                        placeholder="e.g. 8.75"
+                      />
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.hero.showCgpa}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            hero: { ...customizationForm.hero, showCgpa: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Show CGPA Badge in Portfolio</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Skills */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">3. Skills (comma-separated lists)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Programming Languages</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.programming}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, programming: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. Java, Python, C++, SQL"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Frameworks & Tools</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.frameworks}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, frameworks: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. React, FastAPI, Node.js, Git"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Database Skills</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.databases}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, databases: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. PostgreSQL, MongoDB, Redis"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">AI/ML Skills</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.aiMl}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, aiMl: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. PyTorch, TensorFlow, Scikit-Learn"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Technical & Core Skills</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.technical}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, technical: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. Data Structures, Algorithms, OOPs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Soft Skills</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.softSkills}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, softSkills: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. Communication, Problem Solving"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Areas of Interest</label>
+                      <input
+                        type="text"
+                        value={customizationForm.skillsStructured.areasOfInterest}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          skillsStructured: { ...customizationForm.skillsStructured, areasOfInterest: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+                        placeholder="e.g. Cloud Computing, Cyber Security"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Links */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">4. Links (validated URLs starting with http:// or https://)</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">GitHub URL</label>
+                      <input
+                        value={customizationForm.links.github}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, github: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://github.com/username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">LinkedIn URL</label>
+                      <input
+                        value={customizationForm.links.linkedin}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, linkedin: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://linkedin.com/in/username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">LeetCode URL</label>
+                      <input
+                        value={customizationForm.links.leetcode}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, leetcode: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://leetcode.com/username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">HackerRank URL</label>
+                      <input
+                        value={customizationForm.links.hackerrank}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, hackerrank: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://hackerrank.com/username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Personal Website</label>
+                      <input
+                        value={customizationForm.links.website}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, website: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://mywebsite.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Resume Doc URL</label>
+                      <input
+                        value={customizationForm.links.resume}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          links: { ...customizationForm.links, resume: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono bg-white"
+                        placeholder="https://drive.google.com/... (optional)"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. Section Visibility & Custom Titles */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">5. Portfolio Sections Settings</h3>
+                  <div className="space-y-4">
+                    {Object.keys(customizationForm.sections).map((secKey) => {
+                      const sec = customizationForm.sections[secKey];
+                      return (
+                        <div key={secKey} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                          <label className="flex items-center space-x-2 font-bold cursor-pointer text-[#214C55] min-w-[160px]">
+                            <input
+                              type="checkbox"
+                              checked={sec.visible}
+                              onChange={(e) => {
+                                const newSections = { ...customizationForm.sections };
+                                newSections[secKey] = { ...newSections[secKey], visible: e.target.checked };
+                                setCustomizationForm({ ...customizationForm, sections: newSections });
+                              }}
+                              className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                            />
+                            <span className="capitalize">{secKey} Section</span>
+                          </label>
+                          <div className="flex-1 w-full max-w-sm flex items-center space-x-2">
+                            <span className="text-[10px] font-bold text-[#6B7280] uppercase">Title:</span>
+                            <input
+                              type="text"
+                              value={sec.title}
+                              onChange={(e) => {
+                                const newSections = { ...customizationForm.sections };
+                                newSections[secKey] = { ...newSections[secKey], title: e.target.value };
+                                setCustomizationForm({ ...customizationForm, sections: newSections });
+                              }}
+                              className="flex-1 border border-[#D1D5DB] p-1.5 text-xs bg-white font-bold focus:outline-[#C76F2B]"
+                              placeholder={`Title for ${secKey}`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 6. Music Card */}
+                <div className="border border-[#D1D5DB] p-4 space-y-4">
+                  <h3 className="text-xs font-black uppercase text-[#C76F2B] border-b border-[#E5E5E5] pb-2">6. Music Player Settings</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-end pb-2">
+                      <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={customizationForm.music.visible}
+                          onChange={(e) => setCustomizationForm({
+                            ...customizationForm,
+                            music: { ...customizationForm.music, visible: e.target.checked }
+                          })}
+                          className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                        />
+                        <span>Enable Music Card in Portfolio</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Song Title</label>
+                      <input
+                        type="text"
+                        disabled={!customizationForm.music.visible}
+                        value={customizationForm.music.title}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          music: { ...customizationForm.music, title: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white disabled:opacity-50"
+                        placeholder="e.g. Starboy"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] uppercase font-bold text-[#214C55]">Artist Name</label>
+                      <input
+                        type="text"
+                        disabled={!customizationForm.music.visible}
+                        value={customizationForm.music.artist}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          music: { ...customizationForm.music, artist: e.target.value }
+                        })}
+                        className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white disabled:opacity-50"
+                        placeholder="e.g. The Weeknd"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form buttons */}
+                <div className="flex gap-3 pt-4 border-t border-[#E5E5E5]">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
+                  >
+                    Save Portfolio Settings
+                  </button>
+                  <Link
+                    to={`/portfolio/${activeProfile.register_no}`}
+                    className="px-6 py-2.5 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-xs font-bold uppercase transition-all rounded-none block text-center"
+                  >
+                    Preview Portfolio
+                  </Link>
+                </div>
+              </form>
+            ) : (
+              /* Legacy Customization Form for Non-Students */
+              <form onSubmit={handleSaveCustomization} className="space-y-6 font-bold">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">Portfolio Headline</label>
+                    <input
+                      required
+                      value={customizationForm.headline}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, headline: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
+                      placeholder="e.g. AI & DS Student | Full Stack Developer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">Skills (comma-separated)</label>
+                    <input
+                      required
+                      value={customizationForm.skills}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, skills: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
+                      placeholder="e.g. React, Node.js, Python, PostgreSQL"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">About Me</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={customizationForm.about_me}
+                    onChange={(e) => setCustomizationForm({ ...customizationForm, about_me: e.target.value })}
+                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-sans"
+                    placeholder="Tell visitors about your background, projects, and programming goals..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Career Objective</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={customizationForm.career_objective}
+                    onChange={(e) => setCustomizationForm({ ...customizationForm, career_objective: e.target.value })}
+                    className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-sans"
+                    placeholder="Describe your near-term professional goals and what you hope to contribute..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">GitHub URL</label>
+                    <input
+                      value={customizationForm.github_url}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, github_url: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
+                      placeholder="https://github.com/username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">LinkedIn URL</label>
+                    <input
+                      value={customizationForm.linkedin_url}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, linkedin_url: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
+                      placeholder="https://linkedin.com/in/username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">Email Address</label>
+                    <input
+                      required
+                      type="email"
+                      value={customizationForm.email}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, email: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
+                      placeholder="name@college.com"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">Phone Number</label>
+                    <input
+                      value={customizationForm.phone}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, phone: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none font-mono"
+                      placeholder="+91 9876543210"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-[#214C55]">Location</label>
+                    <input
+                      value={customizationForm.location}
+                      onChange={(e) => setCustomizationForm({ ...customizationForm, location: e.target.value })}
+                      className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none"
+                      placeholder="Coimbatore, Tamil Nadu"
+                    />
+                  </div>
+                </div>
+
+                {/* Visibility checklist */}
+                <div className="space-y-2 border-t border-[#E5E5E5] pt-4">
+                  <label className="block text-[10px] uppercase font-bold text-[#214C55]">Section Visibility Settings</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 pt-1">
+                    <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customizationForm.visibility.showProjects}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          visibility: { ...customizationForm.visibility, showProjects: e.target.checked }
+                        })}
+                        className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                      />
+                      <span>Show Projects</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customizationForm.visibility.showCertifications}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          visibility: { ...customizationForm.visibility, showCertifications: e.target.checked }
+                        })}
+                        className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                      />
+                      <span>Show Certifications</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customizationForm.visibility.showAchievements}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          visibility: { ...customizationForm.visibility, showAchievements: e.target.checked }
+                        })}
+                        className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                      />
+                      <span>Show Achievements</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customizationForm.visibility.showAcademicHighlights}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          visibility: { ...customizationForm.visibility, showAcademicHighlights: e.target.checked }
+                        })}
+                        className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                      />
+                      <span>Show Academic Metrics</span>
+                    </label>
+                    <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customizationForm.visibility.showContactLinks}
+                        onChange={(e) => setCustomizationForm({
+                          ...customizationForm,
+                          visibility: { ...customizationForm.visibility, showContactLinks: e.target.checked }
+                        })}
+                        className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                      />
+                      <span>Show Contact Links</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Resume Settings inside Portfolio Customization */}
+                <div className="bg-slate-50 border border-[#D1D5DB] p-4 space-y-3">
+                  <h4 className="text-[10px] uppercase font-bold text-[#214C55] tracking-wide border-b border-[#D1D5DB] pb-1.5 font-sans">Resume Integration Settings</h4>
+                  
+                  <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!customizationForm.visibility?.showResume}
+                      onChange={(e) => setCustomizationForm({
+                        ...customizationForm,
+                        visibility: { ...customizationForm.visibility, showResume: e.target.checked }
+                      })}
+                      className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4"
+                    />
+                    <span>Show Resume in Portfolio</span>
+                  </label>
+
+                  {resumeData?.fileName ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-semibold pt-1">
+                      <div className="sm:col-span-2">
+                        <span className="block text-[9px] uppercase font-bold text-[#6B7280]">Active Resume File</span>
+                        <span className="block text-slate-700 font-bold mt-1 text-[11px] truncate">{resumeData.fileName}</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-[#214C55]">Resume Section Title</label>
+                        <input
+                          type="text"
+                          value={customizationForm.resumeSectionTitle || ""}
+                          onChange={(e) => setCustomizationForm({ ...customizationForm, resumeSectionTitle: e.target.value })}
+                          className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white font-bold"
+                          placeholder="e.g. My Resume"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] uppercase font-bold text-[#214C55]">Resume Button Label</label>
+                        <input
+                          type="text"
+                          value={customizationForm.resumeButtonLabel || ""}
+                          onChange={(e) => setCustomizationForm({ ...customizationForm, resumeButtonLabel: e.target.value })}
+                          className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white font-bold"
+                          placeholder="e.g. View Resume"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider bg-orange-50 p-2 border border-orange-200">
+                      Upload resume from My Resume section first.
+                    </p>
+                  )}
+                </div>
+
+                {/* Form buttons */}
+                <div className="flex gap-3 pt-4 border-t border-[#E5E5E5]">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none cursor-pointer"
+                  >
+                    Save Customization
+                  </button>
+                  <Link
+                    to={`/portfolio/${activeProfile.register_no}`}
+                    className="px-6 py-2.5 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-xs font-bold uppercase transition-all rounded-none block text-center"
+                  >
+                    Preview Portfolio
+                  </Link>
+                </div>
+              </form>
+            )}
           </div>
         )}
 

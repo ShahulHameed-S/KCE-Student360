@@ -81,101 +81,257 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         if user_prof:
             profile_image = user_prof.profile_image
             
-    # 2. Resolve About Me Priority: Customization -> Resume -> StudentAbout -> Default fallback
+    # 2. Parse Customization JSON & Set Priorities
+    custom_data = {}
+    if custom_obj and custom_obj.section_visibility_json:
+        try:
+            custom_data = json.loads(custom_obj.section_visibility_json)
+        except Exception:
+            pass
+    if not isinstance(custom_data, dict):
+        custom_data = {}
+
+    hero_data = custom_data.get("hero", {})
+    skills_data = custom_data.get("skills", {})
+    links_data = custom_data.get("links", {})
+    sections_data = custom_data.get("sections", {})
+    music_data = custom_data.get("music", {})
+
+    # Display Name
+    custom_name = hero_data.get("displayName")
+    display_name = custom_name if (custom_name and custom_name.strip()) else (student.name or "Student")
+
+    # Welcome Text
+    welcome_text = hero_data.get("welcomeText") or "WELCOME TO MY PORTFOLIO"
+
+    # Avatar Initials
+    avatar_initials = hero_data.get("avatarInitials")
+    if not avatar_initials or not avatar_initials.strip():
+        avatar_initials = "".join([n[0] for n in display_name.split() if n]).upper()[:2] if display_name else "ST"
+
+    # Headline
     headline = None
-    about_me = None
-    career_objective = None
-    skills = None
-    github_url = None
-    linkedin_url = None
-
-    # Customization Layer (Priority 1)
-    if custom_obj:
-        if custom_obj.headline:
-            headline = custom_obj.headline
-        if custom_obj.about_me:
-            about_me = custom_obj.about_me
-        if custom_obj.career_objective:
-            career_objective = custom_obj.career_objective
-        if custom_obj.skills_json:
-            try:
-                skills = json.loads(custom_obj.skills_json)
-            except Exception:
-                pass
-        if custom_obj.github_url:
-            github_url = custom_obj.github_url
-        if custom_obj.linkedin_url:
-            linkedin_url = custom_obj.linkedin_url
-
-    # Resume Layer (Priority 2)
-    if resume_obj:
-        if not headline and (resume_obj.preferred_role or resume_obj.resume_title):
-            headline = resume_obj.preferred_role or resume_obj.resume_title
-        if not career_objective and resume_obj.career_objective:
-            career_objective = resume_obj.career_objective
-        if not about_me and resume_obj.career_objective:
-            about_me = resume_obj.career_objective
-        if not skills and resume_obj.key_skills_json:
-            try:
-                skills = json.loads(resume_obj.key_skills_json)
-            except Exception:
-                pass
-        if not github_url and resume_obj.github_url:
-            github_url = resume_obj.github_url
-        if not linkedin_url and resume_obj.linkedin_url:
-            linkedin_url = resume_obj.linkedin_url
-
-    # StudentAbout Layer (Priority 3)
-    if about_obj:
-        if not headline and about_obj.headline:
-            headline = about_obj.headline
-        if not about_me and about_obj.about_me:
-            about_me = about_obj.about_me
-        if not career_objective and about_obj.career_objective:
-            career_objective = about_obj.career_objective
-        if not skills and about_obj.skills_json:
-            try:
-                skills = json.loads(about_obj.skills_json)
-            except Exception:
-                pass
-
-    # Defaults fallback
-    if not headline:
+    custom_headline = hero_data.get("headline")
+    if custom_headline and custom_headline.strip():
+        headline = custom_headline
+    elif custom_obj and custom_obj.headline:
+        headline = custom_obj.headline
+    elif resume_obj and (resume_obj.preferred_role or resume_obj.resume_title):
+        headline = resume_obj.preferred_role or resume_obj.resume_title
+    elif about_obj and about_obj.headline:
+        headline = about_obj.headline
+    else:
         headline = DEFAULT_HEADLINE
-    if not about_me:
+
+    # About Me / Intro
+    about_me = None
+    custom_intro = hero_data.get("intro")
+    if custom_intro and custom_intro.strip():
+        about_me = custom_intro
+    elif custom_obj and custom_obj.about_me:
+        about_me = custom_obj.about_me
+    elif resume_obj and resume_obj.career_objective:
+        about_me = resume_obj.career_objective
+    elif about_obj and about_obj.about_me:
+        about_me = about_obj.about_me
+    else:
         about_me = DEFAULT_ABOUT_ME
-    if not career_objective:
+
+    # Career Objective
+    career_objective = None
+    if custom_obj and custom_obj.career_objective:
+        career_objective = custom_obj.career_objective
+    elif resume_obj and resume_obj.career_objective:
+        career_objective = resume_obj.career_objective
+    elif about_obj and about_obj.career_objective:
+        career_objective = about_obj.career_objective
+    else:
         career_objective = DEFAULT_CAREER_OBJ
+
+    # Location
+    location = None
+    custom_loc = hero_data.get("location")
+    if custom_loc and custom_loc.strip():
+        location = custom_loc
+    elif custom_obj and custom_obj.location:
+        location = custom_obj.location
+    elif student.location:
+        location = student.location
+    else:
+        location = "Coimbatore, Tamil Nadu"
+
+    # Skills Categorized & Flat compatibility list
+    skills_categorized = {
+        "technical": skills_data.get("technical", []),
+        "programming": skills_data.get("programming", []),
+        "frameworks": skills_data.get("frameworks", []),
+        "databases": skills_data.get("databases", []),
+        "aiMl": skills_data.get("aiMl", []),
+        "softSkills": skills_data.get("softSkills", []),
+        "areasOfInterest": skills_data.get("areasOfInterest", [])
+    }
+
+    skills = None
+    flat_custom_skills = []
+    for cat in ["technical", "programming", "frameworks", "databases", "aiMl", "softSkills", "areasOfInterest"]:
+        cat_list = skills_categorized.get(cat)
+        if cat_list and isinstance(cat_list, list):
+            flat_custom_skills.extend(cat_list)
+
+    if flat_custom_skills:
+        skills = flat_custom_skills
+    elif custom_obj and custom_obj.skills_json:
+        try:
+            skills = json.loads(custom_obj.skills_json)
+        except Exception:
+            pass
+
+    if not skills and resume_obj and resume_obj.key_skills_json:
+        try:
+            skills = json.loads(resume_obj.key_skills_json)
+        except Exception:
+            pass
+            
+    if not skills and about_obj and about_obj.skills_json:
+        try:
+            skills = json.loads(about_obj.skills_json)
+        except Exception:
+            pass
+
     if not skills:
         skills = DEFAULT_SKILLS
-    if not github_url:
-        github_url = ""
-    if not linkedin_url:
-        linkedin_url = ""
+
+    # CGPA
+    custom_cgpa = hero_data.get("cgpa")
+    if custom_cgpa is not None and str(custom_cgpa).strip() != "":
+        try:
+            cgpa_str = f"{float(custom_cgpa):.2f}"
+        except ValueError:
+            cgpa_str = "CGPA Not Added"
+    elif student.cgpa is not None:
+        cgpa_str = f"{student.cgpa:.2f}"
+    elif analytics_obj and analytics_obj.academic_average is not None:
+        cgpa_str = f"{analytics_obj.academic_average / 10:.2f}"
+    else:
+        cgpa_str = "CGPA Not Added"
+
+    # Toggles
+    show_cgpa = hero_data.get("showCgpa", True)
+    show_email = hero_data.get("showEmail", True)
+    show_phone = hero_data.get("showPhone", True)
+    show_register_no = hero_data.get("showRegisterNo", True)
+    show_location = hero_data.get("showLocation", True)
+
+    # Social & Resume Links
+    github_url = links_data.get("github") or (custom_obj.github_url if custom_obj and custom_obj.github_url else "")
+    linkedin_url = links_data.get("linkedin") or (custom_obj.linkedin_url if custom_obj and custom_obj.linkedin_url else "")
+    leetcode_url = links_data.get("leetcode") or ""
+    hackerrank_url = links_data.get("hackerrank") or ""
+    website_url = links_data.get("website") or ""
+    resume_url_custom = links_data.get("resume") or ""
+
+    # Email & Phone fallback
+    email = None
+    custom_email = hero_data.get("email") or links_data.get("email")
+    if custom_email and custom_email.strip():
+        email = custom_email
+    elif custom_obj and custom_obj.email:
+        email = custom_obj.email
+    elif student.email:
+        email = student.email
+    else:
+        email = "Not added yet"
+
+    phone = None
+    custom_phone = hero_data.get("phone") or links_data.get("phone")
+    if custom_phone and custom_phone.strip():
+        phone = custom_phone
+    elif custom_obj and custom_obj.phone:
+        phone = custom_obj.phone
+    elif student.phone:
+        phone = student.phone
+    else:
+        phone = "Not added yet"
+
+    # Section Visibilities & Titles
+    sections_config = {
+        "about": {"visible": True, "title": "About"},
+        "performance": {"visible": True, "title": "Performance"},
+        "resume": {"visible": True, "title": "Resume"},
+        "projects": {"visible": True, "title": "Projects"},
+        "achievements": {"visible": True, "title": "Achievements"},
+        "contact": {"visible": True, "title": "Contact"},
+        "certifications": {"visible": True, "title": "Certifications"},
+        "internships": {"visible": True, "title": "Internships"},
+        "hackathons": {"visible": True, "title": "Hackathons"},
+        "publications": {"visible": True, "title": "Publications"},
+        "workshops": {"visible": True, "title": "Workshops"}
+    }
+    
+    # Merge existing section_visibility_json config if it's the new format
+    for sec_name, sec_def in sections_config.items():
+        if sec_name in sections_data:
+            if "visible" in sections_data[sec_name]:
+                sec_def["visible"] = bool(sections_data[sec_name]["visible"])
+            if "title" in sections_data[sec_name] and sections_data[sec_name]["title"]:
+                sec_def["title"] = str(sections_data[sec_name]["title"])
+        # Support fallback from old flat section visibilities if present
+        elif isinstance(custom_data, dict):
+            old_mapping = {
+                "projects": "showProjects",
+                "certifications": "showCertifications",
+                "achievements": "showAchievements",
+                "performance": "showAcademicHighlights",
+                "contact": "showContactLinks",
+                "resume": "showResume"
+            }
+            old_key = old_mapping.get(sec_name)
+            if old_key and old_key in custom_data:
+                sec_def["visible"] = bool(custom_data[old_key])
+
+    legacy_visibility = {
+        "showProjects": sections_config["projects"]["visible"],
+        "showCertifications": sections_config["certifications"]["visible"],
+        "showAchievements": sections_config["achievements"]["visible"],
+        "showAcademicHighlights": sections_config["performance"]["visible"],
+        "showContactLinks": sections_config["contact"]["visible"],
+        "showResume": sections_config["resume"]["visible"]
+    }
+
+    # Music Configuration
+    music_config = {
+        "visible": False,
+        "title": "INTERSTELLAR THEME",
+        "artist": "Hans Zimmer"
+    }
+    if music_data:
+        if "visible" in music_data:
+            music_config["visible"] = bool(music_data["visible"])
+        if "title" in music_data and music_data["title"]:
+            music_config["title"] = str(music_data["title"])
+        if "artist" in music_data and music_data["artist"]:
+            music_config["artist"] = str(music_data["artist"])
 
     # 3. Format Student section
     student_dict = {
         "id": student.id,
         "register_no": student.register_no,
         "registerNo": student.register_no,
-        "name": student.name,
-        "email": student.email,
-        "phone": student.phone or "",
+        "name": display_name,
+        "email": email if show_email else "",
+        "phone": phone if show_phone else "",
         "department": student.department,
         "year": student.year,
         "section": student.section,
         "batch": student.batch,
-        "cgpa": student.cgpa,
+        "cgpa": float(custom_cgpa) if (custom_cgpa is not None and custom_cgpa != "") else student.cgpa,
         "profile_image": profile_image or "",
         "profileImage": profile_image or "",
     }
 
     # 4. Format Resume validation
     resume_dict = None
-    # Include resume only if use_in_portfolio is true and not forbidden by customization
-    show_resume = True
-    if custom_obj and hasattr(custom_obj, "resume_visibility"):
-        show_resume = custom_obj.resume_visibility
+    show_resume = sections_config["resume"]["visible"]
 
     if resume_obj:
         resume_skills = []
@@ -207,8 +363,8 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
             "filePath": resume_obj.file_path or "",
             "resume_url": resume_obj.file_path or "",
             "resumeUrl": resume_obj.file_path or "",
-            "github_url": resume_obj.github_url or "",
-            "linkedin_url": resume_obj.linkedin_url or "",
+            "github_url": github_url,
+            "linkedin_url": linkedin_url,
             "portfolio_url": resume_obj.portfolio_url or "",
             "use_in_portfolio": bool(resume_obj.use_in_portfolio and show_resume),
             "useInPortfolio": bool(resume_obj.use_in_portfolio and show_resume),
@@ -218,49 +374,48 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         }
 
     # 5. Format Customizations details
-    custom_dict = {}
-    if custom_obj:
-        custom_skills = []
-        if custom_obj.skills_json:
-            try:
-                custom_skills = json.loads(custom_obj.skills_json)
-            except Exception:
-                pass
-                
-        custom_visibility = {
-            "showProjects": True,
-            "showCertifications": True,
-            "showAchievements": True,
-            "showAcademicHighlights": True,
-            "showContactLinks": True,
-            "showResume": True
-        }
-        if custom_obj.section_visibility_json:
-            try:
-                custom_visibility = json.loads(custom_obj.section_visibility_json)
-            except Exception:
-                pass
-
-        custom_dict = {
-            "headline": custom_obj.headline or "",
-            "about_me": custom_obj.about_me or "",
-            "aboutMe": custom_obj.about_me or "",
-            "career_objective": custom_obj.career_objective or "",
-            "careerObjective": custom_obj.career_objective or "",
-            "skills": custom_skills,
-            "github_url": custom_obj.github_url or "",
-            "githubUrl": custom_obj.github_url or "",
-            "linkedin_url": custom_obj.linkedin_url or "",
-            "linkedinUrl": custom_obj.linkedin_url or "",
-            "email": custom_obj.email or "",
-            "phone": custom_obj.phone or "",
-            "location": custom_obj.location or "",
-            "theme": custom_obj.theme or "Dark Minimal",
-            "section_visibility_json": custom_visibility,
-            "sectionVisibility": custom_visibility,
-            "resume_visibility": custom_obj.resume_visibility,
-            "resumeVisibility": custom_obj.resume_visibility
-        }
+    custom_dict = {
+        "headline": headline,
+        "about_me": about_me,
+        "aboutMe": about_me,
+        "career_objective": career_objective,
+        "careerObjective": career_objective,
+        "skills": skills,
+        "github_url": github_url,
+        "githubUrl": github_url,
+        "linkedin_url": linkedin_url,
+        "linkedinUrl": linkedin_url,
+        "email": email,
+        "phone": phone,
+        "location": location,
+        "theme": custom_obj.theme if custom_obj else "Dark Minimal",
+        "section_visibility_json": legacy_visibility,
+        "sectionVisibility": legacy_visibility,
+        "resume_visibility": show_resume,
+        "resumeVisibility": show_resume,
+        
+        # Extended custom structures
+        "displayName": display_name,
+        "welcomeText": welcome_text,
+        "avatarInitials": avatar_initials,
+        "cgpa": cgpa_str,
+        "showCgpa": show_cgpa,
+        "showEmail": show_email,
+        "showPhone": show_phone,
+        "showRegisterNo": show_register_no,
+        "showLocation": show_location,
+        "skillsCategorized": skills_categorized,
+        "links": {
+            "github": github_url,
+            "linkedin": linkedin_url,
+            "leetcode": leetcode_url,
+            "hackerrank": hackerrank_url,
+            "website": website_url,
+            "resume": resume_url_custom
+        },
+        "sections": sections_config,
+        "music": music_config
+    }
 
     # 6. Format Performance dictionary
     performance_dict = {}
