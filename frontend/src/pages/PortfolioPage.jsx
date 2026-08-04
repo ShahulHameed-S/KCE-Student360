@@ -356,10 +356,10 @@ export const PortfolioPage = () => {
     portfolio.resume?.career_objective ||
     "To secure a challenging role in an industry-leading organization, leveraging my analytical competencies in Artificial Intelligence, Full-Stack Software Engineering, and problem-solving to design and deploy real-world product solutions.";
 
-  const showCgpa = customizationData?.showCgpa !== false;
   const customCgpa =
     hero?.cgpa ||
     customizationData?.customCGPA ||
+    customizationData?.customCgpa ||
     customizationData?.cgpa;
 
   const displayCgpa =
@@ -367,13 +367,12 @@ export const PortfolioPage = () => {
     portfolio?.cgpa ||
     (portfolio?.overall_score ? safeFixed(portfolio.overall_score / 10, 2) : null) ||
     portfolio?.analytics?.cgpa ||
-    "CGPA Not Added";
+    "";
 
-  const cgpaText = displayCgpa === "CGPA Not Added" 
-    ? "CGPA Not Added" 
-    : String(displayCgpa).toLowerCase().includes("cgpa")
-    ? displayCgpa
-    : `${displayCgpa} CGPA`;
+  const shouldShowCgpa =
+    (hero?.showCgpa !== false && customizationData?.showCgpa !== false) && displayCgpa;
+
+  const cgpaText = shouldShowCgpa ? `${displayCgpa} CGPA` : "CGPA NOT ADDED";
 
   // Calculate assessment timeline items
   const studentPerformance = portfolio.performance?.score_history || portfolio.performance?.scoreHistory || mockPerformance[registerNo] || [];
@@ -694,7 +693,7 @@ export const PortfolioPage = () => {
                 )}
                 
                 {/* CGPA Overlaid pill */}
-                {showCgpa && (
+                {shouldShowCgpa && (
                   <div className="absolute -bottom-2.5 right-1/2 translate-x-1/2 px-3 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 border border-purple-400/30 text-white text-[8px] font-black rounded-full shadow-lg uppercase tracking-wider">
                     {cgpaText}
                   </div>
@@ -979,7 +978,7 @@ export const PortfolioPage = () => {
                         <Trophy size={14} className="text-[#F5C542]" />
                       </div>
                       <div className="text-sm font-black text-white uppercase font-mono">
-                        {showCgpa ? cgpaText : "Hidden"}
+                        {(hero?.showCgpa !== false && customizationData?.showCgpa !== false) ? cgpaText : "Hidden"}
                       </div>
                       <span className="text-[9px] text-[#F5C542] font-extrabold uppercase font-mono block">Overall GPA</span>
                     </div>

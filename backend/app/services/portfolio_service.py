@@ -206,19 +206,26 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
     if custom_cgpa is None or str(custom_cgpa).strip() == "":
         custom_cgpa = custom_data.get("customCGPA")
     if custom_cgpa is None or str(custom_cgpa).strip() == "":
+        custom_cgpa = custom_data.get("customCgpa")
+    if custom_cgpa is None or str(custom_cgpa).strip() == "":
         custom_cgpa = custom_data.get("cgpa")
 
     if custom_cgpa is not None and str(custom_cgpa).strip() != "":
         try:
             cgpa_str = f"{float(custom_cgpa):.2f}"
         except ValueError:
-            cgpa_str = "CGPA Not Added"
+            cgpa_str = ""
     elif student.cgpa is not None:
         cgpa_str = f"{student.cgpa:.2f}"
     elif analytics_obj and analytics_obj.academic_average is not None:
         cgpa_str = f"{analytics_obj.academic_average / 10:.2f}"
     else:
-        cgpa_str = "CGPA Not Added"
+        cgpa_str = ""
+
+    # Normalize customization_data structure to guarantee hero.cgpa is returned
+    if "hero" not in custom_data or not isinstance(custom_data["hero"], dict):
+        custom_data["hero"] = {}
+    custom_data["hero"]["cgpa"] = cgpa_str
 
     # Toggles
     show_cgpa = hero_data.get("showCgpa", True)

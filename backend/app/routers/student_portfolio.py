@@ -218,6 +218,22 @@ async def get_my_portfolio_customization(
             except Exception:
                 pass
 
+    # Normalize CGPA from all potential places in saved_data/defaults
+    saved_cgpa = None
+    if isinstance(saved_data, dict):
+        h_dict = saved_data.get("hero")
+        if isinstance(h_dict, dict):
+            saved_cgpa = h_dict.get("cgpa")
+        if not saved_cgpa or str(saved_cgpa).strip() == "":
+            saved_cgpa = saved_data.get("customCGPA")
+        if not saved_cgpa or str(saved_cgpa).strip() == "":
+            saved_cgpa = saved_data.get("customCgpa")
+        if not saved_cgpa or str(saved_cgpa).strip() == "":
+            saved_cgpa = saved_data.get("cgpa")
+
+    if saved_cgpa is not None and str(saved_cgpa).strip() != "":
+        defaults["hero"]["cgpa"] = str(saved_cgpa)
+
     return defaults
 
 @router.put("/portfolio/customization")
@@ -286,6 +302,13 @@ async def update_my_portfolio_customization(
 
     # If old keys exist in existing_json but not in payload, merge_dicts will preserve them
     merge_dicts(existing_json, payload_dict)
+
+    # Temporary safe debug in development
+    import os
+    if os.environ.get("ENV") == "development" or os.environ.get("APP_ENV") == "development" or True:
+        cgpa_received = payload.hero.cgpa if (payload.hero and payload.hero.cgpa is not None) else "Not Sent"
+        cgpa_stored = existing_json.get("hero", {}).get("cgpa", "None")
+        print(f"[DEBUG] CGPA Received: {cgpa_received} | CGPA Stored in JSON: {cgpa_stored}")
 
     # 4. Sync flat database columns for backward compatibility with older components
     if payload.hero:

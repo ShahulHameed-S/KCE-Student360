@@ -2476,6 +2476,10 @@ export const FacultyDashboard = () => {
             music: customizationForm.music
           };
 
+          if (process.env.NODE_ENV === "development") {
+            console.log("Saving portfolio customization payload", payload);
+          }
+
           const res = await portfolioCustomizationService.saveStudentPortfolioCustomization(payload);
           const currentRegisterNo = user?.register_no || user?.registerNo || activeProfile?.register_no || "22AD001";
           localStorage.setItem(`student360_portfolio_customization_${currentRegisterNo}`, JSON.stringify(payload));
