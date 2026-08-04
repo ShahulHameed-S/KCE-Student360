@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { studentService } from "../services/studentService";
 import { mentorService } from "../services/mentorService";
 import { useAuth } from "../hooks/useAuth";
+import { mockStudents } from "../data/mockStudents";
 import DataTable from "../components/common/DataTable";
 import ScoreBadge from "../components/common/ScoreBadge";
 import DomainBadge from "../components/common/DomainBadge";
@@ -11,6 +12,8 @@ import { ExternalLink, UserSquare2 } from "lucide-react";
 
 export const StudentListPage = () => {
   const { user } = useAuth();
+  const [demoMode, setDemoMode] = useState(false);
+  const [realStudents, setRealStudents] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -44,7 +47,7 @@ export const StudentListPage = () => {
           console.log("First student:", studentsData[0]);
         }
 
-        setStudents(studentsData);
+        setRealStudents(studentsData);
       } catch (err) {
         console.error("Student list directory load failed:", {
           url: user?.role === "mentor" ? "/mentor/students" : "/students",
@@ -59,6 +62,14 @@ export const StudentListPage = () => {
 
     fetchStudents();
   }, [user]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setStudents(mockStudents);
+    } else {
+      setStudents(realStudents);
+    }
+  }, [demoMode, realStudents]);
 
   const columns = [
     {
@@ -178,6 +189,30 @@ export const StudentListPage = () => {
         <p className="text-xs text-[#6B7280] font-semibold mt-1">
           Search students by register number or name, filter by strongest domain, and inspect individual performance scores.
         </p>
+      </div>
+
+      {/* Mode Status Banner and Toggle Controls */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-white border border-[#D1D5DB] rounded-none shadow-none">
+        <div className="flex items-center space-x-2">
+          <div className={`w-2.5 h-2.5 rounded-full ${demoMode ? "bg-amber-500 animate-pulse" : "bg-[#C76F2B]"}`} />
+          <span className="text-xs font-black uppercase tracking-wider text-[#214C55]">
+            {demoMode 
+              ? "Demo Mode Enabled - Showing sample students for review explanation" 
+              : "Live Data Mode - Showing uploaded students from database"}
+          </span>
+        </div>
+        <div className="flex items-center space-x-3">
+          <label className="text-xs font-bold text-[#6B7280] cursor-pointer select-none" htmlFor="demo-toggle">
+            Demo Mode (Review)
+          </label>
+          <input
+            id="demo-toggle"
+            type="checkbox"
+            checked={demoMode}
+            onChange={(e) => setDemoMode(e.target.checked)}
+            className="w-4 h-4 text-[#C76F2B] border-[#D1D5DB] focus:ring-[#C76F2B] rounded-none cursor-pointer"
+          />
+        </div>
       </div>
 
       {/* Main Table Wrapper */}

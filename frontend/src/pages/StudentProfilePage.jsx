@@ -36,6 +36,7 @@ import {
   AlertOctagon
 } from "lucide-react";
 import { mockStudents } from "../data/mockStudents";
+import { mockPerformance } from "../data/mockPerformance";
 
 export const StudentProfilePage = () => {
   const { id } = useParams();
@@ -57,35 +58,57 @@ export const StudentProfilePage = () => {
         setLoading(true);
         setError("");
         
-        // 1. Fetch student details first
-        const profileData = await studentService.getStudentById(id);
+        const isDemo = String(id).toLowerCase().startsWith("22ad");
         
-        // 2. Resolve register number
-        const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student?.register_no ?? profileData?.student?.registerNo;
-        
-        if (!registerNo) {
-          throw new Error("Student register number not resolved.");
+        if (isDemo) {
+          const profileData = mockStudents.find(s => s.id === String(id) || s.register_no?.toLowerCase() === String(id).toLowerCase());
+          if (!profileData) {
+            throw { response: { status: 404 } };
+          }
+          const registerNo = profileData.register_no;
+          const performanceData = mockPerformance[registerNo] || [];
+          
+          setStudent(profileData);
+          setPerformance(performanceData);
+          setApprovals([]);
+          setAiSummary(null);
+        } else {
+          // 1. Fetch student details first
+          const profileData = await studentService.getStudentById(id);
+          
+          // 2. Resolve register number
+          const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student?.register_no ?? profileData?.student?.registerNo;
+          
+          if (!registerNo) {
+            throw new Error("Student register number not resolved.");
+          }
+
+          // 3. Fetch performance & approvals using registerNo
+          const [performanceData, approvalsData] = await Promise.all([
+            studentService.getStudentPerformance(registerNo).catch((err) => {
+              console.warn("Performance API failed, falling back to mock:", err);
+              return mockPerformance[registerNo] || [];
+            }),
+            mentorService.getAllApprovals().catch(() => [])
+          ]);
+
+          console.log("Student detail data:", profileData);
+          console.log("Student performance data:", performanceData);
+
+          setStudent(profileData);
+          setPerformance(performanceData);
+          setApprovals(approvalsData);
+          setAiSummary(null);
         }
-
-        // 3. Fetch performance & approvals using registerNo
-        const [performanceData, approvalsData] = await Promise.all([
-          studentService.getStudentPerformance(registerNo).catch((err) => {
-            console.warn("Performance API failed, falling back to mock:", err);
-            return mockPerformance[registerNo] || [];
-          }),
-          mentorService.getAllApprovals().catch(() => [])
-        ]);
-
-        console.log("Student detail data:", profileData);
-        console.log("Student performance data:", performanceData);
-
-        setStudent(profileData);
-        setPerformance(performanceData);
-        setApprovals(approvalsData);
-        setAiSummary(null);
       } catch (err) {
         console.error("Student detail fetch failure:", err);
-        setError("Failed to fetch student data records.");
+        if (err.response?.status === 404) {
+          setError("Student not found");
+        } else if (err.response?.status === 403) {
+          setError("You are not assigned to this student");
+        } else {
+          setError("Failed to fetch student data records.");
+        }
       } finally {
         setLoading(false);
       }
