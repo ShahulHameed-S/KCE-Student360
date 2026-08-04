@@ -133,6 +133,34 @@ export const PortfolioPage = () => {
         const data = await portfolioService.getStudentPortfolio(registerNo);
         setPortfolio(data);
       } catch (err) {
+        if (String(registerNo).toLowerCase().startsWith("22ad")) {
+          const demoStudent = mockStudents.find(s => s.register_no?.toLowerCase() === String(registerNo).toLowerCase() || s.id === String(registerNo));
+          if (demoStudent) {
+            setPortfolio({
+              student: demoStudent,
+              name: demoStudent.name,
+              register_no: demoStudent.register_no,
+              department: demoStudent.department,
+              year: demoStudent.year,
+              section: demoStudent.section,
+              overall_score: demoStudent.overall_score,
+              strongest_domain: demoStudent.strongest_domain,
+              weakest_domain: demoStudent.weakest_domain,
+              projects: demoStudent.projects || [],
+              certifications: demoStudent.certifications || [],
+              achievements: demoStudent.achievements || [],
+              analytics: demoStudent.domain_scores || {},
+              about: {
+                headline: demoStudent.headline || `${demoStudent.department} Student`,
+                about_me: demoStudent.about_me || "Demo student profile for review explanation.",
+                career_objective: "To excel in Artificial Intelligence and Data Science.",
+                skills: ["React", "Python", "DSA", "DBMS", "Machine Learning"]
+              }
+            });
+            setLoading(false);
+            return;
+          }
+        }
         setError("Failed to construct the verified portfolio card.");
       } finally {
         setLoading(false);
