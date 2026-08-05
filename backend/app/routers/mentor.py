@@ -397,6 +397,45 @@ async def get_mentor_debug_students(
     }
 
 
+@router.get("/debug/leaderboard")
+async def get_mentor_debug_leaderboard(
+    current_user: User = Depends(RoleRequired(["mentor", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """Debug proof endpoint for mentor leaderboard data."""
+    from app.services.leaderboard_service import get_leaderboard_data
+    from app.models.score import AssessmentScore, StudentAnalytics
+
+    leaderboard = get_leaderboard_data(db, "Overall", current_user=current_user)
+    student_ids = [s["id"] for s in leaderboard]
+    
+    analytics_count = db.query(StudentAnalytics).filter(StudentAnalytics.student_id.in_(student_ids)).count() if student_ids else 0
+    scores_count = db.query(AssessmentScore).filter(AssessmentScore.student_id.in_(student_ids)).count() if student_ids else 0
+
+    with_scores = [s for s in leaderboard if s.get("overall_score") is not None]
+    without_scores = [s for s in leaderboard if s.get("overall_score") is None]
+
+    first_students = [
+        {
+            "register_no": s.get("register_no"),
+            "name": s.get("name"),
+            "overall_score": s.get("overall_score"),
+            "domain_scores": s.get("domain_scores", {})
+        }
+        for s in leaderboard[:10]
+    ]
+
+    return {
+        "mentor_email": current_user.email,
+        "students_found": len(leaderboard),
+        "students_with_scores": len(with_scores),
+        "students_without_scores": len(without_scores),
+        "analytics_records_found": analytics_count,
+        "scores_records_found": scores_count,
+        "first_students": first_students
+    }
+
+
 from fastapi import UploadFile, File
 from app.schemas.score import UploadScoresResponse
 from app.services.upload_service import process_scores_excel
