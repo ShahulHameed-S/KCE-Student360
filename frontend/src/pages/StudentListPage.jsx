@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { studentService } from "../services/studentService";
 import { mentorService } from "../services/mentorService";
 import { useAuth } from "../hooks/useAuth";
-import { mockStudents } from "../data/mockStudents";
 import DataTable from "../components/common/DataTable";
 import ScoreBadge from "../components/common/ScoreBadge";
 import DomainBadge from "../components/common/DomainBadge";
@@ -12,8 +11,6 @@ import { ExternalLink, UserSquare2 } from "lucide-react";
 
 export const StudentListPage = () => {
   const { user } = useAuth();
-  const [demoMode, setDemoMode] = useState(false);
-  const [realStudents, setRealStudents] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,7 +44,7 @@ export const StudentListPage = () => {
           console.log("First student:", studentsData[0]);
         }
 
-        setRealStudents(studentsData);
+        setStudents(studentsData);
       } catch (err) {
         console.error("Student list directory load failed:", {
           url: user?.role === "mentor" ? "/mentor/students" : "/students",
@@ -62,14 +59,6 @@ export const StudentListPage = () => {
 
     fetchStudents();
   }, [user]);
-
-  useEffect(() => {
-    if (demoMode) {
-      setStudents(mockStudents);
-    } else {
-      setStudents(realStudents);
-    }
-  }, [demoMode, realStudents]);
 
   const columns = [
     {
@@ -151,14 +140,14 @@ export const StudentListPage = () => {
         <div className="flex items-center justify-center space-x-2">
           <Link
             to={`/students/${row.register_no || row.registerNo || row.id}`}
-            className="text-xs font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
+            className="text-xs font-bold text-[#214C55] hover:text-white bg-[#F7F7F7] hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
           >
             <UserSquare2 size={13} />
             <span>Profile</span>
           </Link>
           <Link
-            to={`/portfolio/${row.register_no}`}
-            className="text-xs font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
+            to={`/portfolio/${row.register_no || row.registerNo}`}
+            className="text-xs font-bold text-[#C76F2B] hover:text-white bg-[#F7F7F7] hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
           >
             <span>Portfolio</span>
             <ExternalLink size={13} />
@@ -191,28 +180,12 @@ export const StudentListPage = () => {
         </p>
       </div>
 
-      {/* Mode Status Banner and Toggle Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 bg-white border border-[#D1D5DB] rounded-none shadow-none">
-        <div className="flex items-center space-x-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${demoMode ? "bg-amber-500 animate-pulse" : "bg-[#C76F2B]"}`} />
-          <span className="text-xs font-black uppercase tracking-wider text-[#214C55]">
-            {demoMode 
-              ? "Demo Mode Enabled - Showing sample students for review explanation" 
-              : "Live Data Mode - Showing uploaded students from database"}
-          </span>
-        </div>
-        <div className="flex items-center space-x-3">
-          <label className="text-xs font-bold text-[#6B7280] cursor-pointer select-none" htmlFor="demo-toggle">
-            Demo Mode (Review)
-          </label>
-          <input
-            id="demo-toggle"
-            type="checkbox"
-            checked={demoMode}
-            onChange={(e) => setDemoMode(e.target.checked)}
-            className="w-4 h-4 text-[#C76F2B] border-[#D1D5DB] focus:ring-[#C76F2B] rounded-none cursor-pointer"
-          />
-        </div>
+      {/* Mode Status Banner */}
+      <div className="flex items-center space-x-2 p-4 bg-white border border-[#D1D5DB] rounded-none shadow-none">
+        <div className="w-2.5 h-2.5 rounded-full bg-[#C76F2B]" />
+        <span className="text-xs font-black uppercase tracking-wider text-[#214C55]">
+          Live Data Mode — Showing uploaded students from database
+        </span>
       </div>
 
       {/* Main Table Wrapper */}
@@ -232,4 +205,5 @@ export const StudentListPage = () => {
     </div>
   );
 };
+
 export default StudentListPage;
