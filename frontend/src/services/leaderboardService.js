@@ -7,11 +7,16 @@ export const leaderboardService = {
       const response = await api.get("/leaderboard/overall");
       return response.data;
     } catch (error) {
-      console.warn("Overall Leaderboard API failed, returning mock overall leaderboard:", error.message);
-      if (import.meta.env.PROD) {
-        throw error;
+      console.warn("Overall Leaderboard API failed, trying /mentor/leaderboard fallback:", error.message);
+      try {
+        const mentorRes = await api.get("/mentor/leaderboard?domain=Overall");
+        return mentorRes.data;
+      } catch (mErr) {
+        if (import.meta.env.PROD) {
+          throw error;
+        }
+        return mockOverallLeaderboard;
       }
-      return mockOverallLeaderboard;
     }
   },
 
@@ -28,11 +33,16 @@ export const leaderboardService = {
       const response = await api.get(`/leaderboard/domain/${cleanDomain}`);
       return response.data;
     } catch (error) {
-      console.warn(`Domain Leaderboard API for ${cleanDomain} failed, returning mock domain leaderboard:`, error.message);
-      if (import.meta.env.PROD) {
-        throw error;
+      console.warn(`Domain Leaderboard API for ${cleanDomain} failed, trying /mentor/leaderboard fallback:`, error.message);
+      try {
+        const mentorRes = await api.get(`/mentor/leaderboard?domain=${cleanDomain}`);
+        return mentorRes.data;
+      } catch (mErr) {
+        if (import.meta.env.PROD) {
+          throw error;
+        }
+        return getDomainLeaderboard(cleanDomain);
       }
-      return getDomainLeaderboard(cleanDomain);
     }
   }
 };

@@ -47,33 +47,39 @@ export const LeaderboardPage = () => {
         setLoading(true);
         setError("");
         let response;
+        const apiUrl = selectedDomain === "Overall" 
+          ? "/leaderboard/overall" 
+          : `/leaderboard/domain/${selectedDomain}`;
+
         if (selectedDomain === "Overall") {
           response = await leaderboardService.getOverallLeaderboard();
         } else {
           response = await leaderboardService.getLeaderboardByDomain(selectedDomain);
         }
 
-        // Safe array normalization
+        // Safe array normalization per Task 4
         const data = Array.isArray(response)
           ? response
-          : Array.isArray(response?.items)
-            ? response.items
-            : Array.isArray(response?.students)
-              ? response.students
-              : Array.isArray(response?.leaderboard)
-                ? response.leaderboard
+          : Array.isArray(response?.leaderboard)
+            ? response.leaderboard
+            : Array.isArray(response?.items)
+              ? response.items
+              : Array.isArray(response?.students)
+                ? response.students
                 : [];
 
         if (!import.meta.env.PROD) {
-          console.log("Leaderboard role:", user?.role);
-          console.log("Leaderboard domain:", selectedDomain);
-          console.log("Leaderboard response count:", data.length);
+          console.log("Leaderboard user role:", user?.role);
+          console.log("Leaderboard selected filter:", selectedDomain);
+          console.log("Leaderboard API URL:", apiUrl);
+          console.log("Leaderboard response:", response);
+          console.log("Leaderboard resolved student count:", data.length);
         }
 
         setLeaderboardData(data);
       } catch (err) {
         console.error("Leaderboard fetch error:", err);
-        setError("Failed to resolve batch ranking matrix.");
+        setError(err.response?.data?.detail || err.message || "Failed to resolve batch ranking matrix.");
       } finally {
         setLoading(false);
       }

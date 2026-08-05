@@ -436,6 +436,18 @@ async def get_mentor_debug_leaderboard(
     }
 
 
+@router.get("/leaderboard")
+async def get_mentor_leaderboard(
+    domain: str = "Overall",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleRequired(["mentor", "admin"]))
+):
+    """Retrieves mentor student leaderboard."""
+    from app.services.leaderboard_service import get_leaderboard_data
+    leaderboard = get_leaderboard_data(db, domain, current_user=current_user)
+    return {"leaderboard": leaderboard}
+
+
 from fastapi import UploadFile, File
 from app.schemas.score import UploadScoresResponse
 from app.services.upload_service import process_scores_excel
