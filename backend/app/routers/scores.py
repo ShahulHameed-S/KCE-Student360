@@ -65,20 +65,22 @@ async def list_scores(
     if current_user.role == "mentor":
         mentor_students = resolve_mentor_students(db, current_user)
         allowed_ids = [s.id for s in mentor_students]
+        if not allowed_ids:
+            return {"items": [], "total": 0, "page": page, "limit": limit}
         query = query.filter(AssessmentScore.student_id.in_(allowed_ids))
 
     if register_no:
         reg_pattern = f"%{register_no.strip()}%"
         query = query.filter(
             or_(
-                func.lower(Student.register_no).like(func.lower(reg_pattern)),
-                func.lower(Student.name).like(func.lower(reg_pattern))
+                Student.register_no.ilike(reg_pattern),
+                Student.name.ilike(reg_pattern)
             )
         )
 
     if assessment_name:
         ass_pattern = f"%{assessment_name.strip()}%"
-        query = query.filter(func.lower(AssessmentScore.assessment_name).like(func.lower(ass_pattern)))
+        query = query.filter(AssessmentScore.assessment_name.ilike(ass_pattern))
 
     if category:
         norm_cat = normalize_domain(category)

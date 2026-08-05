@@ -18,6 +18,7 @@ import {
 export const ManageScoresTable = ({ onScoreChange }) => {
   const [scores, setScores] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("Loading uploaded scores...");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -28,8 +29,10 @@ export const ManageScoresTable = ({ onScoreChange }) => {
 
   // Filter States
   const [searchReg, setSearchReg] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [assessmentFilter, setAssessmentFilter] = useState("");
+  const [debouncedAssessment, setDebouncedAssessment] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -52,28 +55,64 @@ export const ManageScoresTable = ({ onScoreChange }) => {
   const [deletingScore, setDeletingScore] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Debounce searchReg and assessmentFilter (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchReg.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchReg]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAssessment(assessmentFilter.trim());
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [assessmentFilter]);
+
+  // Reset page to 1 when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, categoryFilter, debouncedAssessment, dateFrom, dateTo]);
+
   const fetchScores = useCallback(async () => {
+    let slowTimer;
     setLoading(true);
     setError("");
     setSelectedScoreIds([]);
+    setLoadingText("Loading uploaded scores...");
+
+    slowTimer = setTimeout(() => {
+      setLoadingText("Server is searching records, please wait...");
+    }, 5000);
+
     try {
       const data = await uploadService.getScores({
-        register_no: searchReg || undefined,
+        register_no: debouncedSearch || undefined,
         category: categoryFilter || undefined,
-        assessment_name: assessmentFilter || undefined,
+        assessment_name: debouncedAssessment || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         page,
         limit
       });
-      setScores(data.items || []);
-      setTotal(data.total || 0);
+      const items = data.items || [];
+      const totalCount = data.total || 0;
+      setScores(items);
+      setTotal(totalCount);
+
+      // Clamp page if page > totalPages
+      const calculatedTotalPages = Math.max(1, Math.ceil(totalCount / limit));
+      if (page > calculatedTotalPages) {
+        setPage(1);
+      }
     } catch (err) {
       setError(err.message || "Failed to load uploaded scores.");
     } finally {
+      if (slowTimer) clearTimeout(slowTimer);
       setLoading(false);
     }
-  }, [searchReg, categoryFilter, assessmentFilter, dateFrom, dateTo, page, limit]);
+  }, [debouncedSearch, categoryFilter, debouncedAssessment, dateFrom, dateTo, page, limit]);
 
   useEffect(() => {
     fetchScores();
@@ -87,8 +126,10 @@ export const ManageScoresTable = ({ onScoreChange }) => {
 
   const handleResetFilters = () => {
     setSearchReg("");
+    setDebouncedSearch("");
     setCategoryFilter("");
     setAssessmentFilter("");
+    setDebouncedAssessment("");
     setDateFrom("");
     setDateTo("");
     setPage(1);
@@ -206,7 +247,11 @@ export const ManageScoresTable = ({ onScoreChange }) => {
     }
   };
 
-  const totalPages = Math.ceil(total / limit) || 1;
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const safePage = Math.min(page, totalPages);
+  const startRecord = total > 0 ? (safePage - 1) * limit + 1 : 0;
+  const endRecord = Math.min(safePage * limit, total);
 
   return (
     <div className="bg-white p-5 rounded-none border border-[#D1D5DB] shadow-none space-y-5 animate-fade-in text-[#111827]">
@@ -267,10 +312,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
           </label>
           <select
             value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setCategoryFilter(e.target.value)}
             className="w-full text-xs p-2 border border-[#D1D5DB] rounded-none focus:outline-none focus:border-[#C76F2B] bg-white font-semibold"
           >
             <option value="">All Categories</option>
@@ -303,10 +345,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => {
-              setDateFrom(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setDateFrom(e.target.value)}
             className="w-full text-xs p-2 border border-[#D1D5DB] rounded-none focus:outline-none focus:border-[#C76F2B]"
           />
         </div>
@@ -319,10 +358,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => {
-                setDateTo(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setDateTo(e.target.value)}
               className="w-full text-xs p-2 border border-[#D1D5DB] rounded-none focus:outline-none focus:border-[#C76F2B]"
             />
           </div>
@@ -385,7 +421,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
       {/* Scores Table */}
       {loading ? (
         <div className="py-8">
-          <LoadingSpinner size="md" text="Loading score records..." />
+          <LoadingSpinner size="md" text={loadingText} />
         </div>
       ) : scores.length === 0 ? (
         <div className="p-8 text-center bg-[#F7F7F7] border border-[#D1D5DB] text-xs font-semibold text-[#6B7280] uppercase tracking-wider">
@@ -473,24 +509,23 @@ export const ManageScoresTable = ({ onScoreChange }) => {
       {/* Pagination Footer */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs border-t border-[#E5E5E5] pt-3 font-semibold text-[#6B7280]">
         <span>
-          Showing {scores.length > 0 ? (page - 1) * limit + 1 : 0} to{" "}
-          {Math.min(page * limit, total)} of {total} records
+          Showing {startRecord} to {endRecord} of {total} records
         </span>
 
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setPage((p) => Math.max(p - 1, 1))}
-            disabled={page === 1}
+            disabled={safePage === 1}
             className="p-1.5 border border-[#D1D5DB] bg-white disabled:opacity-40 hover:bg-[#F7F7F7] cursor-pointer"
           >
             <ChevronLeft size={14} />
           </button>
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#214C55]">
-            Page {page} of {totalPages}
+            Page {safePage} of {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-            disabled={page >= totalPages}
+            disabled={safePage >= totalPages}
             className="p-1.5 border border-[#D1D5DB] bg-white disabled:opacity-40 hover:bg-[#F7F7F7] cursor-pointer"
           >
             <ChevronRight size={14} />

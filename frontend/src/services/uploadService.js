@@ -45,7 +45,7 @@ export const uploadService = {
 
   getScores: async (params = {}) => {
     try {
-      const response = await api.get("/scores", { params });
+      const response = await api.get("/scores", { params, timeout: 120000 });
       return response.data;
     } catch (error) {
       const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to fetch scores";
