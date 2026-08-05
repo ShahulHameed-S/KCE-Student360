@@ -50,7 +50,7 @@ export const ScoreUploadPage = () => {
       const data = await uploadService.uploadExcelScores(file);
       setUploadResult(data);
     } catch (err) {
-      setError("Failed to parse scores sheet. Please check the network or backend server.");
+      setError(err.message || "Failed to parse scores sheet. Please check the network or backend server.");
     } finally {
       setLoading(false);
     }
@@ -63,7 +63,7 @@ export const ScoreUploadPage = () => {
   };
 
   const downloadCSVTemplate = () => {
-    const csvContent = "data:text/csv;charset=utf-8,register_no,name,assessment_name,category,score,max_marks,date,remarks\n22AD001,Shahul Hameed S,Mentor Test 1,DBMS,87,100,2026-07-11,Excellent\n22AD002,Rachith,Mentor Test 1,DBMS,91,100,2026-07-11,Very Good\n";
+    const csvContent = "data:text/csv;charset=utf-8,Register No,Student Name,Assessment Name,Category,Score,Max Marks,Date\n717824I101,Aakash M,Mid Term 1,DSA,87,100,2026-07-11\n717824I102,Abinaya S,Mid Term 1,DBMS,91,100,2026-07-11\n";
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -144,21 +144,27 @@ export const ScoreUploadPage = () => {
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center space-x-3 text-[#15803D] bg-emerald-50 border border-emerald-250 px-4 py-3 rounded-none">
                 <CheckCircle size={18} className="text-[#15803D]" />
-                <span className="text-xs font-bold uppercase tracking-wider">File processed and validated successfully.</span>
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  Scores processed successfully. {uploadResult.analytics_recalculated ? "Student analytics recalculated." : ""}
+                </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="p-3 bg-[#F7F7F7] rounded-none text-center border border-[#D1D5DB]">
                   <span className="text-[9px] font-extrabold text-[#6B7280] uppercase tracking-wider block">Total Rows</span>
                   <span className="text-xl font-black text-[#214C55] mt-1 block">{uploadResult.total_rows}</span>
                 </div>
                 <div className="p-3 bg-emerald-50 rounded-none text-center border border-emerald-150">
-                  <span className="text-[9px] font-extrabold text-[#15803D] uppercase tracking-wider block">Valid Rows</span>
-                  <span className="text-xl font-black text-[#15803D] mt-1 block">{uploadResult.valid_rows}</span>
+                  <span className="text-[9px] font-extrabold text-[#15803D] uppercase tracking-wider block">Inserted</span>
+                  <span className="text-xl font-black text-[#15803D] mt-1 block">{uploadResult.inserted ?? uploadResult.valid_rows}</span>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-none text-center border border-blue-150">
+                  <span className="text-[9px] font-extrabold text-[#1D4ED8] uppercase tracking-wider block">Students</span>
+                  <span className="text-xl font-black text-[#1D4ED8] mt-1 block">{uploadResult.affected_students ?? 0}</span>
                 </div>
                 <div className="p-3 bg-red-50 rounded-none text-center border border-red-150">
                   <span className="text-[9px] font-extrabold text-[#B91C1C] uppercase tracking-wider block">Skipped</span>
-                  <span className="text-xl font-black text-[#B91C1C] mt-1 block">{uploadResult.error_rows}</span>
+                  <span className="text-xl font-black text-[#B91C1C] mt-1 block">{uploadResult.error_rows ?? uploadResult.skipped ?? 0}</span>
                 </div>
               </div>
 

@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.models.student import Student
-from app.models.score import StudentAnalytics
+from app.models.score import StudentAnalytics, AssessmentScore
 from app.models.user import User
 from app.utils.domain_utils import normalize_domain
+from app.services.analytics_service import recalculate_student_analytics
 
 def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: User = None) -> list:
     """
@@ -74,9 +76,15 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                     class_students.append(s)
 
         if explicit_students:
-            target_students = explicit_students
+            student_list = explicit_students
         else:
-            target_students = class_students
+            student_list = class_students
+
+        seen_ids = set()
+        for s in student_list:
+            if s.id not in seen_ids:
+                seen_ids.add(s.id)
+                target_students.append(s)
     else:
         # Admin, Faculty, or public
         all_students = db.query(Student).all()
@@ -97,7 +105,16 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
     items = []
     for student in target_students:
         analytics = analytics_map.get(student.id)
-        
+
+        # Fallback dynamic calculation from assessment_scores if analytics missing or total_assessments == 0
+        if not analytics:
+            scores_count = db.query(AssessmentScore).filter(AssessmentScore.student_id == student.id).count()
+            if scores_count > 0:
+                analytics = recalculate_student_analytics(db, student.id)
+                if analytics:
+                    db.flush()
+
+        has_scores = False
         domain_score = None
         overall_score = None
         best_score = None
@@ -106,14 +123,13 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
         weakest = "Not added"
         domain_scores_map = {}
 
-        if analytics:
+        if analytics and getattr(analytics, "total_assessments", 0) > 0:
+            has_scores = True
             overall_score = analytics.overall_score
             best_score = analytics.best_score
             latest_score = analytics.latest_score
-            if analytics.strongest_domain:
-                strongest = analytics.strongest_domain
-            if analytics.weakest_domain:
-                weakest = analytics.weakest_domain
+            strongest = analytics.strongest_domain or "Not added"
+            weakest = analytics.weakest_domain or "Not added"
 
             domain_scores_map = {
                 "DSA": analytics.dsa_average or 0.0,
@@ -150,8 +166,8 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                 profile_image = user_prof.profile_image
 
         items.append({
-            "target_score": domain_score if domain_score is not None else -1.0,
-            "has_score": domain_score is not None and domain_score > 0,
+            "target_score": domain_score if (has_scores and domain_score is not None) else -1.0,
+            "has_score": has_scores and domain_score is not None,
             "data": {
                 "id": student.id,
                 "user_id": student.user_id,
@@ -182,14 +198,16 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
         })
 
     # 4. Sort records: scored students descending by score, unscored students by name
-    items.sort(key=lambda x: (x["has_score"], x["target_score"]), reverse=True)
+    items.sort(key=lambda x: (x["has_score"], x["target_score"], x["data"]["name"]), reverse=True)
 
     # 5. Assign rank numbers (only for scored students)
     leaderboard = []
-    for idx, item in enumerate(items):
+    rank_counter = 1
+    for item in items:
         row = item["data"]
         if item["has_score"]:
-            row["rank"] = idx + 1
+            row["rank"] = rank_counter
+            rank_counter += 1
         else:
             row["rank"] = None
         leaderboard.append(row)

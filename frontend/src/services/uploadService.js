@@ -13,19 +13,8 @@ export const uploadService = {
       });
       return response.data;
     } catch (error) {
-      console.warn("Upload Scores API failed, simulating mock file validation:", error.message);
-      
-      // Simulate file parsing delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      // Return dummy parsing report
-      return {
-        success: true,
-        total_rows: 150,
-        valid_rows: 142,
-        error_rows: 8,
-        status: "Scores uploaded successfully. Leaderboard updated. 8 rows skipped due to missing Register Nos."
-      };
+      const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to upload scores sheet";
+      throw new Error(errorMsg);
     }
   },
 
@@ -37,8 +26,8 @@ export const uploadService = {
       const response = await api.get("/scores/count");
       return response.data.count;
     } catch (error) {
-      console.warn("Get Scores Count API failed, using fallback:", error.message);
-      return 142; // fallback mock count
+      console.warn("Get Scores Count API failed:", error.message);
+      return 0;
     }
   }
 };

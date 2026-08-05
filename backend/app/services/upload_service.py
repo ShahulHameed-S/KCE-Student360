@@ -6,8 +6,11 @@ from fastapi import HTTPException
 
 from app.models.student import Student
 from app.models.score import AssessmentScore
+from app.models.user import User
 from app.utils.domain_utils import normalize_domain
 from app.services.analytics_service import recalculate_student_analytics
+
+from sqlalchemy import func
 
 def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allowed_student_ids: list = None) -> dict:
     """
@@ -25,6 +28,12 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
     if not rows:
         return {
             "success": False,
+            "inserted": 0,
+            "updated": 0,
+            "failed": 0,
+            "skipped": 0,
+            "analytics_recalculated": False,
+            "affected_students": 0,
             "total_rows": 0,
             "valid_rows": 0,
             "error_rows": 0,
@@ -33,16 +42,16 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
         }
 
     # Find headers (look at first row)
-    headers = [str(cell).strip().lower().replace("_", " ").replace("  ", " ") for cell in rows[0]]
+    headers = [str(cell).strip().lower().replace("_", " ").replace("  ", " ") if cell is not None else "" for cell in rows[0]]
     
     # Map required columns
     col_mapping = {}
     expected_cols = {
-        "register_no": ["register no", "register_no", "reg no", "reg_no"],
-        "student_name": ["student name", "student_name", "name"],
-        "assessment_name": ["assessment name", "assessment_name", "test name"],
+        "register_no": ["register no", "register_no", "reg no", "reg_no", "register number", "reg number"],
+        "student_name": ["student name", "student_name", "name", "full name", "full_name"],
+        "assessment_name": ["assessment name", "assessment_name", "test name", "assessment", "exam name"],
         "category": ["category", "subject", "domain"],
-        "score": ["score", "marks", "marks obtained"],
+        "score": ["score", "marks", "marks obtained", "obtained marks"],
         "max_marks": ["max marks", "max_marks", "total marks", "max"],
         "date": ["date", "test date", "assessment date", "assessment_date"]
     }
@@ -72,10 +81,14 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
             continue
 
         try:
-            reg_no = str(row[col_mapping["register_no"]]).strip()
+            reg_raw = str(row[col_mapping["register_no"]]).strip() if row[col_mapping["register_no"]] is not None else ""
+            if reg_raw.endswith(".0"):
+                reg_raw = reg_raw[:-2]
+            reg_no = reg_raw.strip()
+
             student_name = row[col_mapping["student_name"]]
-            assessment_name = str(row[col_mapping["assessment_name"]]).strip()
-            category_raw = str(row[col_mapping["category"]]).strip()
+            assessment_name = str(row[col_mapping["assessment_name"]]).strip() if row[col_mapping["assessment_name"]] is not None else ""
+            category_raw = str(row[col_mapping["category"]]).strip() if row[col_mapping["category"]] is not None else ""
             score_raw = row[col_mapping["score"]]
             max_marks_raw = row[col_mapping["max_marks"]]
             date_raw = row[col_mapping["date"]]
@@ -94,8 +107,8 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
                 })
                 continue
 
-            # Validate student existence
-            student = db.query(Student).filter(Student.register_no == reg_no).first()
+            # Validate student existence (case-insensitive register_no lookup)
+            student = db.query(Student).filter(func.lower(Student.register_no) == reg_no.lower()).first()
             if not student:
                 errors_list.append({"row": idx, "message": f"Student with register number '{reg_no}' not found"})
                 continue
@@ -137,10 +150,14 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
 
             percentage = round((score / max_marks) * 100.0, 2)
 
+            # Check if uploader user exists
+            uploader = db.query(User).filter(User.id == uploader_id).first() if uploader_id else None
+            valid_uploader_id = uploader.id if uploader else None
+
             # Construct database model record
             score_record = AssessmentScore(
                 student_id=student.id,
-                uploaded_by=uploader_id,
+                uploaded_by=valid_uploader_id,
                 assessment_name=assessment_name,
                 category=category,
                 score=score,
@@ -176,6 +193,12 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
 
     return {
         "success": True,
+        "inserted": valid_rows,
+        "updated": 0,
+        "failed": error_rows,
+        "skipped": error_rows,
+        "analytics_recalculated": len(affected_student_ids) > 0,
+        "affected_students": len(affected_student_ids),
         "total_rows": total_data_rows,
         "valid_rows": valid_rows,
         "error_rows": error_rows,

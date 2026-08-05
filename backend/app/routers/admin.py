@@ -1046,3 +1046,83 @@ async def admin_debug_student(
         "user_is_active": user.is_active if user else None,
         "mentor_assignments_count": assignments_count
     }
+
+
+@router.get("/debug/scores/{register_no}")
+async def admin_debug_scores(
+    register_no: str,
+    current_user: User = Depends(RoleRequired(["admin", "faculty", "mentor"])),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check score counts, domain averages, and analytics state for a student."""
+    from sqlalchemy import func
+    from app.models.score import AssessmentScore, StudentAnalytics
+    from app.utils.domain_utils import normalize_domain
+
+    clean_reg = register_no.strip()
+    if clean_reg.endswith(".0"):
+        clean_reg = clean_reg[:-2]
+
+    student = db.query(Student).filter(func.lower(Student.register_no) == clean_reg.lower()).first()
+
+    if not student:
+        return {
+            "register_no": register_no,
+            "student_found": False,
+            "student_id": None,
+            "scores_count": 0,
+            "categories": {
+                "DSA": 0.0,
+                "DBMS": 0.0,
+                "FullStack": 0.0,
+                "Aptitude": 0.0,
+                "Coding": 0.0,
+                "Academic": 0.0
+            },
+            "analytics_exists": False,
+            "overall_score": None
+        }
+
+    scores = db.query(AssessmentScore).filter(AssessmentScore.student_id == student.id).all()
+    analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
+
+    categories = ["DSA", "DBMS", "FullStack", "Aptitude", "Coding", "Academic"]
+    cat_map = {cat: [] for cat in categories}
+    for sc in scores:
+        norm_c = normalize_domain(sc.category)
+        if norm_c and norm_c in cat_map:
+            cat_map[norm_c].append(sc.percentage)
+
+    cat_averages = {}
+    for cat in categories:
+        vals = cat_map[cat]
+        cat_averages[cat] = round(sum(vals) / len(vals), 2) if vals else 0.0
+
+    overall = analytics.overall_score if (analytics and analytics.total_assessments > 0) else None
+
+    return {
+        "register_no": student.register_no,
+        "student_found": True,
+        "student_id": student.id,
+        "scores_count": len(scores),
+        "categories": cat_averages,
+        "analytics_exists": analytics is not None,
+        "overall_score": overall
+    }
+
+
+from fastapi import UploadFile, File
+from app.services.upload_service import process_scores_excel
+from app.schemas.score import UploadScoresResponse
+
+@router.post("/upload/scores", response_model=UploadScoresResponse)
+@router.post("/scores/upload", response_model=UploadScoresResponse)
+async def admin_upload_scores(
+    file: UploadFile = File(...),
+    current_user: User = Depends(RoleRequired(["admin", "faculty", "mentor"])),
+    db: Session = Depends(get_db)
+):
+    """Admin score upload handler alias."""
+    file_bytes = await file.read()
+    return process_scores_excel(db, file_bytes, current_user.id)
+

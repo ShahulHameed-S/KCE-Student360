@@ -8,6 +8,12 @@ class UploadErrorItem(BaseModel):
 
 class UploadScoresResponse(BaseModel):
     success: bool
+    inserted: int = 0
+    updated: int = 0
+    failed: int = 0
+    skipped: int = 0
+    analytics_recalculated: bool = False
+    affected_students: int = 0
     total_rows: int
     valid_rows: int
     error_rows: int
