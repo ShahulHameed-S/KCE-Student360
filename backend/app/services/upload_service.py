@@ -74,6 +74,7 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
     valid_records = []
     affected_student_ids = set()
     total_data_rows = len(rows) - 1  # Exclude header
+    unauthorized_count = 0
 
     for idx, row in enumerate(rows[1:], start=2):
         # Skip empty rows
@@ -114,7 +115,8 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
                 continue
 
             if allowed_student_ids is not None and student.id not in allowed_student_ids:
-                errors_list.append({"row": idx, "message": f"Student with register number '{reg_no}' is not assigned to this mentor"})
+                unauthorized_count += 1
+                errors_list.append({"row": idx, "message": "Student not assigned to this mentor"})
                 continue
 
             # Validate scores
@@ -197,6 +199,7 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
         "updated": 0,
         "failed": error_rows,
         "skipped": error_rows,
+        "unauthorized": unauthorized_count,
         "analytics_recalculated": len(affected_student_ids) > 0,
         "affected_students": len(affected_student_ids),
         "total_rows": total_data_rows,

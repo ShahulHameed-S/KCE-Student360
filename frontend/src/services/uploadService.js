@@ -1,15 +1,18 @@
 import api from "./api";
 
 export const uploadService = {
-  uploadExcelScores: async (file) => {
+  uploadExcelScores: async (file, userRole = "admin") => {
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await api.post("/scores/upload", formData, {
+      const endpoint = userRole === "mentor" ? "/mentor/upload/scores" : "/scores/upload";
+
+      const response = await api.post(endpoint, formData, {
         headers: {
           "Content-Type": "multipart/form-data"
-        }
+        },
+        timeout: 180000
       });
       return response.data;
     } catch (error) {

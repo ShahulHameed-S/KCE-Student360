@@ -12,6 +12,7 @@ class UploadScoresResponse(BaseModel):
     updated: int = 0
     failed: int = 0
     skipped: int = 0
+    unauthorized: int = 0
     analytics_recalculated: bool = False
     affected_students: int = 0
     total_rows: int

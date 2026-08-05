@@ -241,6 +241,83 @@ async def review_submission(
     return build_unified_approval_item(item, item_type_norm)
 
 
+def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
+    """Helper to resolve assigned and class-matching students for a mentor or admin/faculty."""
+    from app.models.student import FacultyProfile
+    from app.models.profile import UserProfile
+    import json
+
+    if current_user.role in ["admin", "faculty"]:
+        all_students = db.query(Student).all()
+        return [s for s in all_students if not s.register_no.lower().startswith("22ad")]
+
+    explicit_students = []
+    assigned_student_ids = get_assigned_student_ids(db, current_user.id)
+    if assigned_student_ids:
+        db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+        explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
+
+    class_students = []
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    assigned_dept = None
+    assigned_yr = None
+    assigned_sec = None
+    assigned_batch = None
+
+    if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
+        try:
+            bio_data = json.loads(profile.bio)
+            assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
+            assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
+            assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
+            assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
+        except Exception:
+            pass
+
+    if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+        assigned_dept = "AI & DS"
+        assigned_yr = "3"
+        assigned_sec = "A"
+        assigned_batch = "2028"
+
+    if not assigned_dept:
+        fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
+        if fp:
+            assigned_dept = fp.department
+
+    if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+        all_db_students = db.query(Student).all()
+        norm_m_dept = normalize_dept(assigned_dept)
+        norm_m_yr = normalize_year(assigned_yr)
+        norm_m_sec = normalize_section(assigned_sec)
+
+        for s in all_db_students:
+            if s.register_no.lower().startswith("22ad"):
+                continue
+            match = True
+            if norm_m_dept and normalize_dept(s.department) != norm_m_dept:
+                match = False
+            if norm_m_yr and normalize_year(s.year) != norm_m_yr:
+                match = False
+            if norm_m_sec and normalize_section(s.section) != norm_m_sec:
+                match = False
+            if assigned_batch and s.batch and s.batch.strip() != assigned_batch.strip():
+                match = False
+            if match:
+                class_students.append(s)
+
+    # Combine both explicit assigned students and class matching students
+    combined_list = explicit_students + class_students
+    seen_ids = set()
+    deduped_students = []
+    for s in combined_list:
+        if s.id not in seen_ids:
+            seen_ids.add(s.id)
+            deduped_students.append(s)
+
+    return deduped_students
+
+
 @router.get("/students")
 async def get_mentor_students(
     current_user: User = Depends(RoleRequired(["mentor", "admin", "faculty"])),
@@ -248,94 +325,8 @@ async def get_mentor_students(
 ):
     """Retrieves list of assigned students for a mentor (or all for admin/faculty)."""
     from app.models.score import StudentAnalytics
-    from app.models.student import FacultyProfile
-    
-    if current_user.role in ["admin", "faculty"]:
-        # Do not return demo students from backend
-        all_students = db.query(Student).all()
-        students = [s for s in all_students if not s.register_no.lower().startswith("22ad")]
-    else:
-        explicit_students = []
-        assigned_student_ids = get_assigned_student_ids(db, current_user.id)
-        if assigned_student_ids:
-            db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-            # Filter out demo students from explicit assignments
-            explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
-            
-        class_students = []
-        from app.models.profile import UserProfile
-        import json
-        
-        profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-        assigned_dept = None
-        assigned_yr = None
-        assigned_sec = None
-        assigned_batch = None
-        
-        if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-            try:
-                bio_data = json.loads(profile.bio)
-                assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-                assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-                assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-                assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-            except Exception:
-                pass
-                
-        # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
-        if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
-            assigned_dept = "AI & DS"
-            assigned_yr = "3"
-            assigned_sec = "A"
-            assigned_batch = "2028"
-            
-        if not assigned_dept:
-            fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-            if fp:
-                assigned_dept = fp.department
-                
-        if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
-            all_db_students = db.query(Student).all()
-            norm_m_dept = normalize_dept(assigned_dept)
-            norm_m_yr = normalize_year(assigned_yr)
-            norm_m_sec = normalize_section(assigned_sec)
-            
-            for s in all_db_students:
-                # Do not return demo students from backend
-                if s.register_no.lower().startswith("22ad"):
-                    continue
-                    
-                match = True
-                if norm_m_dept:
-                    if normalize_dept(s.department) != norm_m_dept:
-                        match = False
-                if norm_m_yr:
-                    if normalize_year(s.year) != norm_m_yr:
-                        match = False
-                if norm_m_sec:
-                    if normalize_section(s.section) != norm_m_sec:
-                        match = False
-                if assigned_batch:
-                    if s.batch and s.batch.strip() != assigned_batch.strip():
-                        match = False
-                        
-                if match:
-                    class_students.append(s)
-                    
-        # Prefer explicit assignments if they exist after filtering demo students;
-        # otherwise use class-based matching
-        if explicit_students:
-            students_query_list = explicit_students
-        else:
-            students_query_list = class_students
-            
-        # Deduplicate
-        seen_ids = set()
-        students = []
-        for s in students_query_list:
-            if s.id not in seen_ids:
-                seen_ids.add(s.id)
-                students.append(s)
+
+    students = resolve_mentor_students(db, current_user)
 
     res_list = []
     for s in students:
@@ -480,3 +471,27 @@ async def mentor_debug_students(
         "students_returned_count": len(students),
         "students": serialized_students
     }
+
+
+from fastapi import UploadFile, File
+from app.schemas.score import UploadScoresResponse
+from app.services.upload_service import process_scores_excel
+
+@router.post("/upload/scores", response_model=UploadScoresResponse)
+@router.post("/scores/upload", response_model=UploadScoresResponse)
+async def mentor_upload_scores(
+    file: UploadFile = File(...),
+    current_user: User = Depends(RoleRequired(["mentor", "admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Uploads Excel test marks for students assigned to the logged in mentor.
+    Validates mentor-student access, inserts valid rows, recalculates analytics.
+    """
+    allowed_student_ids = None
+    if current_user.role == "mentor":
+        mentor_students = resolve_mentor_students(db, current_user)
+        allowed_student_ids = [s.id for s in mentor_students]
+
+    file_bytes = await file.read()
+    return process_scores_excel(db, file_bytes, current_user.id, allowed_student_ids)

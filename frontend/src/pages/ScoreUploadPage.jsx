@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { uploadService } from "../services/uploadService";
+import { useAuth } from "../hooks/useAuth";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import { safeFixed } from "../utils/formatters";
 import {
@@ -9,10 +10,15 @@ import {
   CheckCircle,
   FileCheck2,
   ListRestart,
-  HelpCircle
+  HelpCircle,
+  Download
 } from "lucide-react";
 
 export const ScoreUploadPage = () => {
+  const { user } = useAuth();
+  const userRole = user?.role || "admin";
+  const isMentor = userRole === "mentor";
+
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,7 +53,7 @@ export const ScoreUploadPage = () => {
     setError("");
 
     try {
-      const data = await uploadService.uploadExcelScores(file);
+      const data = await uploadService.uploadExcelScores(file, userRole);
       setUploadResult(data);
     } catch (err) {
       setError(err.message || "Failed to parse scores sheet. Please check the network or backend server.");
@@ -77,9 +83,13 @@ export const ScoreUploadPage = () => {
     <div className="space-y-6 animate-fade-in text-[#111827]">
       {/* Header */}
       <div className="border-b border-[#D1D5DB] pb-4">
-        <h1 className="text-xl font-extrabold text-[#214C55] uppercase tracking-wider">Excel Score Ingestion Panel</h1>
+        <h1 className="text-xl font-extrabold text-[#214C55] uppercase tracking-wider">
+          {isMentor ? "Upload Test Marks" : "Excel Score Ingestion Panel"}
+        </h1>
         <p className="text-xs text-[#6B7280] font-semibold mt-1">
-          Ingest new batches of academic results, hackathons, and lab assessments. Verify parsing outputs before saving.
+          {isMentor 
+            ? "Upload Excel test marks for your assigned students. Verify parsing outputs before saving."
+            : "Ingest new batches of academic results, hackathons, and lab assessments. Verify parsing outputs before saving."}
         </p>
       </div>
 
@@ -149,22 +159,26 @@ export const ScoreUploadPage = () => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="p-3 bg-[#F7F7F7] rounded-none text-center border border-[#D1D5DB]">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+                <div className="p-3 bg-[#F7F7F7] rounded-none border border-[#D1D5DB]">
                   <span className="text-[9px] font-extrabold text-[#6B7280] uppercase tracking-wider block">Total Rows</span>
-                  <span className="text-xl font-black text-[#214C55] mt-1 block">{uploadResult.total_rows}</span>
+                  <span className="text-lg font-black text-[#214C55] mt-1 block">{uploadResult.total_rows}</span>
                 </div>
-                <div className="p-3 bg-emerald-50 rounded-none text-center border border-emerald-150">
+                <div className="p-3 bg-emerald-50 rounded-none border border-emerald-150">
                   <span className="text-[9px] font-extrabold text-[#15803D] uppercase tracking-wider block">Inserted</span>
-                  <span className="text-xl font-black text-[#15803D] mt-1 block">{uploadResult.inserted ?? uploadResult.valid_rows}</span>
+                  <span className="text-lg font-black text-[#15803D] mt-1 block">{uploadResult.inserted ?? uploadResult.valid_rows}</span>
                 </div>
-                <div className="p-3 bg-blue-50 rounded-none text-center border border-blue-150">
+                <div className="p-3 bg-blue-50 rounded-none border border-blue-150">
                   <span className="text-[9px] font-extrabold text-[#1D4ED8] uppercase tracking-wider block">Students</span>
-                  <span className="text-xl font-black text-[#1D4ED8] mt-1 block">{uploadResult.affected_students ?? 0}</span>
+                  <span className="text-lg font-black text-[#1D4ED8] mt-1 block">{uploadResult.affected_students ?? 0}</span>
                 </div>
-                <div className="p-3 bg-red-50 rounded-none text-center border border-red-150">
+                <div className="p-3 bg-amber-50 rounded-none border border-amber-150">
+                  <span className="text-[9px] font-extrabold text-[#D97706] uppercase tracking-wider block">Unauthorized</span>
+                  <span className="text-lg font-black text-[#D97706] mt-1 block">{uploadResult.unauthorized ?? 0}</span>
+                </div>
+                <div className="p-3 bg-red-50 rounded-none border border-red-150">
                   <span className="text-[9px] font-extrabold text-[#B91C1C] uppercase tracking-wider block">Skipped</span>
-                  <span className="text-xl font-black text-[#B91C1C] mt-1 block">{uploadResult.error_rows ?? uploadResult.skipped ?? 0}</span>
+                  <span className="text-lg font-black text-[#B91C1C] mt-1 block">{uploadResult.error_rows ?? uploadResult.skipped ?? 0}</span>
                 </div>
               </div>
 
@@ -179,12 +193,12 @@ export const ScoreUploadPage = () => {
               {uploadResult.errors && uploadResult.errors.length > 0 && (
                 <div className="p-4 bg-red-50 border border-red-250 rounded-none space-y-2">
                   <span className="text-xs font-extrabold text-[#B91C1C] uppercase tracking-wider block">
-                    Skipped/Error Records Log
+                    Skipped / Error Records Log
                   </span>
                   <div className="max-h-48 overflow-y-auto space-y-1.5 divide-y divide-red-100 text-[11px] font-bold">
                     {uploadResult.errors.map((err, i) => (
                       <div key={i} className="pt-1.5 flex justify-between gap-4">
-                        <span className="text-red-700">Row {err.row}</span>
+                        <span className="text-red-700 font-mono">Row {err.row}</span>
                         <span className="text-slate-700">{err.message}</span>
                       </div>
                     ))}
@@ -220,8 +234,8 @@ export const ScoreUploadPage = () => {
               onClick={downloadCSVTemplate}
               className="w-full py-2 px-3 text-xs font-bold uppercase tracking-wider text-[#C76F2B] bg-white border border-[#C76F2B] hover:bg-[#C76F2B] hover:text-white transition-colors rounded-none shadow-none flex items-center justify-center space-x-2 cursor-pointer"
             >
-              <FileSpreadsheet size={13} />
-              <span>Download Excel/CSV Template</span>
+              <Download size={13} />
+              <span>Download Test Marks Template</span>
             </button>
 
             {/* Expected format visual list */}
