@@ -41,11 +41,20 @@ export const LeaderboardPage = () => {
     { value: "Technical", label: "Core Technical labs" }
   ];
 
+  const [loadingText, setLoadingText] = useState("Loading leaderboard from server. Please wait...");
+
   useEffect(() => {
+    let slowTimer;
     const fetchLeaderboard = async () => {
       try {
         setLoading(true);
         setError("");
+        setLoadingText("Loading leaderboard from server. Please wait...");
+
+        slowTimer = setTimeout(() => {
+          setLoadingText("Server is calculating rankings. Please wait...");
+        }, 5000);
+
         let response;
         const apiUrl = selectedDomain === "Overall" 
           ? "/leaderboard/overall" 
@@ -81,6 +90,7 @@ export const LeaderboardPage = () => {
         console.error("Leaderboard fetch error:", err);
         setError(err.response?.data?.detail || err.message || "Failed to resolve batch ranking matrix.");
       } finally {
+        if (slowTimer) clearTimeout(slowTimer);
         setLoading(false);
       }
     };
@@ -270,7 +280,7 @@ export const LeaderboardPage = () => {
       </div>
 
       {loading ? (
-        <LoadingSpinner size="lg" text={`Calculating ${selectedDomain} ranking statistics...`} />
+        <LoadingSpinner size="lg" text={loadingText} />
       ) : error ? (
         <div className="bg-red-50 border border-red-200 text-[#B91C1C] p-4 rounded-none flex items-center space-x-3 text-xs max-w-lg mx-auto shadow-none font-bold">
           <ShieldAlert size={20} className="text-[#B91C1C] flex-shrink-0" />

@@ -4,12 +4,12 @@ import { mockOverallLeaderboard, getDomainLeaderboard } from "../data/mockLeader
 export const leaderboardService = {
   getOverallLeaderboard: async () => {
     try {
-      const response = await api.get("/leaderboard/overall");
+      const response = await api.get("/leaderboard/overall", { timeout: 120000 });
       return response.data;
     } catch (error) {
       console.warn("Overall Leaderboard API failed, trying /mentor/leaderboard fallback:", error.message);
       try {
-        const mentorRes = await api.get("/mentor/leaderboard?domain=Overall");
+        const mentorRes = await api.get("/mentor/leaderboard?domain=Overall", { timeout: 120000 });
         return mentorRes.data;
       } catch (mErr) {
         if (import.meta.env.PROD) {
@@ -30,12 +30,12 @@ export const leaderboardService = {
     }
 
     try {
-      const response = await api.get(`/leaderboard/domain/${cleanDomain}`);
+      const response = await api.get(`/leaderboard/domain/${cleanDomain}`, { timeout: 120000 });
       return response.data;
     } catch (error) {
       console.warn(`Domain Leaderboard API for ${cleanDomain} failed, trying /mentor/leaderboard fallback:`, error.message);
       try {
-        const mentorRes = await api.get(`/mentor/leaderboard?domain=${cleanDomain}`);
+        const mentorRes = await api.get(`/mentor/leaderboard?domain=${cleanDomain}`, { timeout: 120000 });
         return mentorRes.data;
       } catch (mErr) {
         if (import.meta.env.PROD) {

@@ -10,7 +10,7 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
     """
     Retrieves ranked student rankings sorted by overall_score or a specific domain score.
     Uses resolve_mentor_students for mentor scope (department + year + batch matching, section ignored).
-    Safely formats unscored or partially scored students without throwing errors.
+    Optimized for high performance with zero N+1 database queries.
     """
     # 1. Determine student scope
     target_students = []
@@ -27,24 +27,24 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
 
     target_student_ids = [s.id for s in target_students]
 
-    # 2. Query analytics with outer join
+    # 2. Batch query analytics
     analytics_records = db.query(StudentAnalytics).filter(StudentAnalytics.student_id.in_(target_student_ids)).all()
     analytics_map = {a.student_id: a for a in analytics_records}
 
+    # 3. Batch query UserProfile for profile images
+    user_ids = [s.user_id for s in target_students if s.user_id]
+    profile_image_map = {}
+    if user_ids:
+        from app.models.profile import UserProfile
+        profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all()
+        profile_image_map = {p.user_id: p.profile_image for p in profiles if p.profile_image}
+
     norm_cat = normalize_domain(domain)
 
-    # 3. Build student records list
+    # 4. Build student records list
     items = []
     for student in target_students:
         analytics = analytics_map.get(student.id)
-
-        # Fallback dynamic calculation from assessment_scores if analytics missing
-        if not analytics:
-            scores_count = db.query(AssessmentScore).filter(AssessmentScore.student_id == student.id).count()
-            if scores_count > 0:
-                analytics = recalculate_student_analytics(db, student.id)
-                if analytics:
-                    db.flush()
 
         has_scores = False
         domain_score = None
@@ -92,12 +92,7 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
             if domain_score is not None:
                 has_scores = True
 
-        profile_image = student.profile_image or ""
-        if not profile_image and student.user_id:
-            from app.models.profile import UserProfile
-            user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
-            if user_prof and user_prof.profile_image:
-                profile_image = user_prof.profile_image
+        profile_image = student.profile_image or profile_image_map.get(student.user_id, "")
 
         items.append({
             "target_score": float(domain_score) if (has_scores and domain_score is not None) else -1.0,
@@ -131,10 +126,10 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
             }
         })
 
-    # 4. Sort records: scored students descending by score, unscored students by name
+    # 5. Sort records: scored students descending by score, unscored students by name
     items.sort(key=lambda x: (x["has_score"], x["target_score"], x["data"]["name"]), reverse=True)
 
-    # 5. Assign rank numbers (only for scored students)
+    # 6. Assign rank numbers (only for scored students)
     leaderboard = []
     rank_counter = 1
     for item in items:
