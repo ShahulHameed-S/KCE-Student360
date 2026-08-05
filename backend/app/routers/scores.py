@@ -204,6 +204,65 @@ async def edit_score(
     }
 
 
+from app.schemas.score import BulkDeleteScoresRequest, BulkDeleteScoresResponse
+
+@router.delete("/bulk", response_model=BulkDeleteScoresResponse)
+async def bulk_delete_scores(
+    data: BulkDeleteScoresRequest,
+    current_user: User = Depends(RoleRequired(["admin", "mentor"])),
+    db: Session = Depends(get_db)
+):
+    """Bulk deletes assessment score records and recalculates affected student analytics."""
+    if not data.score_ids:
+        return BulkDeleteScoresResponse(
+            success=True,
+            deleted_count=0,
+            skipped_count=0,
+            message="No score IDs provided"
+        )
+
+    score_records = db.query(AssessmentScore).filter(AssessmentScore.id.in_(data.score_ids)).all()
+    if not score_records:
+        return BulkDeleteScoresResponse(
+            success=True,
+            deleted_count=0,
+            skipped_count=0,
+            message="No matching score records found"
+        )
+
+    allowed_student_ids = None
+    if current_user.role == "mentor":
+        mentor_students = resolve_mentor_students(db, current_user)
+        allowed_student_ids = set(s.id for s in mentor_students)
+
+    deleted_count = 0
+    skipped_count = 0
+    affected_student_ids = set()
+
+    for s_obj in score_records:
+        if allowed_student_ids is not None and s_obj.student_id not in allowed_student_ids:
+            skipped_count += 1
+            continue
+
+        affected_student_ids.add(s_obj.student_id)
+        db.delete(s_obj)
+        deleted_count += 1
+
+    db.commit()
+
+    # Recalculate student analytics for all affected students in batch
+    for sid in affected_student_ids:
+        recalculate_student_analytics(db, sid)
+    db.commit()
+
+    return BulkDeleteScoresResponse(
+        success=True,
+        deleted_count=deleted_count,
+        skipped_count=skipped_count,
+        message=f"Successfully deleted {deleted_count} score record(s)."
+    )
+
+
 @router.delete("/{score_id}")
 async def delete_score(
     score_id: int,

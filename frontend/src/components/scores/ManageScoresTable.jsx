@@ -21,6 +21,11 @@ export const ManageScoresTable = ({ onScoreChange }) => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Checkbox Selection State
+  const [selectedScoreIds, setSelectedScoreIds] = useState([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   // Filter States
   const [searchReg, setSearchReg] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -50,6 +55,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
   const fetchScores = useCallback(async () => {
     setLoading(true);
     setError("");
+    setSelectedScoreIds([]);
     try {
       const data = await uploadService.getScores({
         register_no: searchReg || undefined,
@@ -86,6 +92,24 @@ export const ManageScoresTable = ({ onScoreChange }) => {
     setDateFrom("");
     setDateTo("");
     setPage(1);
+    setSelectedScoreIds([]);
+  };
+
+  // Checkbox Selection Logic
+  const isAllSelected = scores.length > 0 && scores.every((s) => selectedScoreIds.includes(s.id));
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedScoreIds([]);
+    } else {
+      setSelectedScoreIds(scores.map((s) => s.id));
+    }
+  };
+
+  const handleSelectRow = (id) => {
+    setSelectedScoreIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   };
 
   // Open Edit Modal
@@ -132,6 +156,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
         date: editForm.date
       });
       setEditingScore(null);
+      setSelectedScoreIds([]);
       setSuccessMessage("Score record updated successfully. Student analytics recalculated.");
       fetchScores();
       if (onScoreChange) onScoreChange();
@@ -143,13 +168,14 @@ export const ManageScoresTable = ({ onScoreChange }) => {
     }
   };
 
-  // Submit Delete
+  // Single Delete
   const handleConfirmDelete = async () => {
     if (!deletingScore) return;
     setDeleting(true);
     try {
       await uploadService.deleteScore(deletingScore.id);
       setDeletingScore(null);
+      setSelectedScoreIds([]);
       setSuccessMessage("Score record deleted successfully. Student analytics recalculated.");
       fetchScores();
       if (onScoreChange) onScoreChange();
@@ -158,6 +184,25 @@ export const ManageScoresTable = ({ onScoreChange }) => {
       setError(err.message || "Failed to delete score record.");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Bulk Delete
+  const handleConfirmBulkDelete = async () => {
+    if (selectedScoreIds.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const res = await uploadService.deleteScoresBulk(selectedScoreIds);
+      setShowBulkDeleteConfirm(false);
+      setSelectedScoreIds([]);
+      setSuccessMessage(res.message || `Successfully deleted ${selectedScoreIds.length} score record(s). Student analytics recalculated.`);
+      fetchScores();
+      if (onScoreChange) onScoreChange();
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err) {
+      setError(err.message || "Failed to bulk delete score records.");
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -292,6 +337,51 @@ export const ManageScoresTable = ({ onScoreChange }) => {
         </div>
       </form>
 
+      {/* Bulk Action Bar */}
+      {selectedScoreIds.length > 0 && (
+        <div className="bg-[#214C55]/10 border border-[#214C55] p-3 rounded-none flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-[#214C55] animate-fade-in">
+          <div className="flex items-center space-x-2">
+            <span className="bg-[#214C55] text-white px-2 py-0.5 text-[11px] font-black">
+              {selectedScoreIds.length}
+            </span>
+            <span>score record(s) selected</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            {selectedScoreIds.length === 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const targetScore = scores.find((s) => s.id === selectedScoreIds[0]);
+                  if (targetScore) handleOpenEdit(targetScore);
+                }}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center space-x-1 border border-blue-700 cursor-pointer shadow-sm"
+              >
+                <Edit2 size={13} />
+                <span>Edit Selected</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="px-3 py-1.5 bg-[#B91C1C] hover:bg-red-800 text-white font-bold text-xs uppercase tracking-wider flex items-center space-x-1 border border-red-800 cursor-pointer shadow-sm"
+            >
+              <Trash2 size={13} />
+              <span>Delete Selected ({selectedScoreIds.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedScoreIds([])}
+              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs uppercase tracking-wider border border-[#D1D5DB] cursor-pointer"
+            >
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Scores Table */}
       {loading ? (
         <div className="py-8">
@@ -306,6 +396,15 @@ export const ManageScoresTable = ({ onScoreChange }) => {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#214C55] text-white font-extrabold uppercase tracking-wider text-[10px]">
               <tr>
+                <th className="p-2.5 border-b border-[#D1D5DB] w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={handleSelectAll}
+                    className="w-3.5 h-3.5 accent-[#C76F2B] cursor-pointer"
+                    title="Select All Visible Rows"
+                  />
+                </th>
                 <th className="p-2.5 border-b border-[#D1D5DB]">Register No</th>
                 <th className="p-2.5 border-b border-[#D1D5DB]">Student Name</th>
                 <th className="p-2.5 border-b border-[#D1D5DB]">Assessment</th>
@@ -318,40 +417,54 @@ export const ManageScoresTable = ({ onScoreChange }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5E5E5] font-semibold text-slate-800">
-              {scores.map((row) => (
-                <tr key={row.id} className="hover:bg-[#F7F7F7] transition-colors">
-                  <td className="p-2.5 font-mono text-[#214C55] font-bold">{row.register_no}</td>
-                  <td className="p-2.5">{row.student_name}</td>
-                  <td className="p-2.5 text-slate-700">{row.assessment_name}</td>
-                  <td className="p-2.5">
-                    <span className="inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-slate-100 border border-slate-300 text-slate-800">
-                      {row.category}
-                    </span>
-                  </td>
-                  <td className="p-2.5 text-right font-black text-slate-900">{row.score}</td>
-                  <td className="p-2.5 text-right text-slate-600">{row.max_marks}</td>
-                  <td className="p-2.5 text-right font-black text-[#C76F2B]">{row.percentage}%</td>
-                  <td className="p-2.5 text-slate-600 font-mono text-[11px]">{row.date}</td>
-                  <td className="p-2.5 text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      <button
-                        onClick={() => handleOpenEdit(row)}
-                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-200 transition-colors cursor-pointer"
-                        title="Edit Score"
-                      >
-                        <Edit2 size={13} />
-                      </button>
-                      <button
-                        onClick={() => setDeletingScore(row)}
-                        className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-200 transition-colors cursor-pointer"
-                        title="Delete Score"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {scores.map((row) => {
+                const isSelected = selectedScoreIds.includes(row.id);
+                return (
+                  <tr
+                    key={row.id}
+                    className={`transition-colors ${isSelected ? "bg-amber-50/70" : "hover:bg-[#F7F7F7]"}`}
+                  >
+                    <td className="p-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleSelectRow(row.id)}
+                        className="w-3.5 h-3.5 accent-[#C76F2B] cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-2.5 font-mono text-[#214C55] font-bold">{row.register_no}</td>
+                    <td className="p-2.5">{row.student_name}</td>
+                    <td className="p-2.5 text-slate-700">{row.assessment_name}</td>
+                    <td className="p-2.5">
+                      <span className="inline-block px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider bg-slate-100 border border-slate-300 text-slate-800">
+                        {row.category}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-right font-black text-slate-900">{row.score}</td>
+                    <td className="p-2.5 text-right text-slate-600">{row.max_marks}</td>
+                    <td className="p-2.5 text-right font-black text-[#C76F2B]">{row.percentage}%</td>
+                    <td className="p-2.5 text-slate-600 font-mono text-[11px]">{row.date}</td>
+                    <td className="p-2.5 text-center">
+                      <div className="flex items-center justify-center space-x-2">
+                        <button
+                          onClick={() => handleOpenEdit(row)}
+                          className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 border border-blue-200 transition-colors cursor-pointer"
+                          title="Edit Score"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingScore(row)}
+                          className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 border border-red-200 transition-colors cursor-pointer"
+                          title="Delete Score"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -508,7 +621,7 @@ export const ManageScoresTable = ({ onScoreChange }) => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Single Delete Confirmation Modal */}
       {deletingScore && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white border border-[#D1D5DB] w-full max-w-sm p-6 space-y-4 shadow-xl">
@@ -545,6 +658,43 @@ export const ManageScoresTable = ({ onScoreChange }) => {
                 className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#B91C1C] hover:bg-red-800 disabled:opacity-50"
               >
                 {deleting ? "Deleting..." : "Delete Score"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white border border-[#D1D5DB] w-full max-w-sm p-6 space-y-4 shadow-xl">
+            <div className="flex items-center space-x-2 text-[#B91C1C]">
+              <AlertCircle size={20} />
+              <h4 className="font-extrabold text-sm uppercase tracking-wider">Confirm Bulk Deletion</h4>
+            </div>
+
+            <p className="text-xs text-[#111827] font-semibold leading-relaxed">
+              Are you sure you want to delete <strong className="text-slate-900">{selectedScoreIds.length}</strong> selected score record(s)?
+            </p>
+            <p className="text-[11px] text-[#6B7280]">
+              Student analytics and leaderboard ranks will be recalculated automatically after deletion.
+            </p>
+
+            <div className="flex justify-end space-x-2 pt-2 border-t border-[#E5E5E5]">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-white border border-[#D1D5DB] hover:bg-[#F7F7F7]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBulkDelete}
+                disabled={bulkDeleting}
+                className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#B91C1C] hover:bg-red-800 disabled:opacity-50"
+              >
+                {bulkDeleting ? "Deleting..." : `Delete ${selectedScoreIds.length} Records`}
               </button>
             </div>
           </div>

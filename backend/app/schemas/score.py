@@ -92,3 +92,14 @@ class ScoreListResponse(BaseModel):
     total: int
     page: int
     limit: int
+
+
+class BulkDeleteScoresRequest(BaseModel):
+    score_ids: List[int]
+
+
+class BulkDeleteScoresResponse(BaseModel):
+    success: bool
+    deleted_count: int
+    skipped_count: int = 0
+    message: str

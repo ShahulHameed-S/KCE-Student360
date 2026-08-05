@@ -71,5 +71,15 @@ export const uploadService = {
       const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to delete score";
       throw new Error(errorMsg);
     }
+  },
+
+  deleteScoresBulk: async (scoreIds) => {
+    try {
+      const response = await api.delete("/scores/bulk", { data: { score_ids: scoreIds } });
+      return response.data;
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to delete selected scores";
+      throw new Error(errorMsg);
+    }
   }
 };
