@@ -170,7 +170,7 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         location = custom_loc
     elif custom_obj and custom_obj.location:
         location = custom_obj.location
-    elif student.location:
+    elif getattr(student, "location", None):
         location = student.location
     else:
         location = "Coimbatore, Tamil Nadu"
@@ -230,7 +230,7 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
             cgpa_str = f"{float(custom_cgpa):.2f}"
         except ValueError:
             cgpa_str = ""
-    elif student.cgpa is not None:
+    elif getattr(student, "cgpa", None) is not None:
         cgpa_str = f"{student.cgpa:.2f}"
     elif analytics_obj and analytics_obj.academic_average is not None:
         cgpa_str = f"{analytics_obj.academic_average / 10:.2f}"
@@ -275,7 +275,7 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         phone = custom_phone
     elif custom_obj and custom_obj.phone:
         phone = custom_obj.phone
-    elif student.phone:
+    elif getattr(student, "phone", None):
         phone = student.phone
     else:
         phone = "Not added yet"
@@ -351,7 +351,7 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "year": student.year,
         "section": student.section,
         "batch": student.batch,
-        "cgpa": float(custom_cgpa) if (custom_cgpa is not None and custom_cgpa != "") else student.cgpa,
+        "cgpa": float(custom_cgpa) if (custom_cgpa is not None and str(custom_cgpa).strip() != "") else (getattr(student, "cgpa", None) or 0.0),
         "profile_image": profile_image or "",
         "profileImage": profile_image or "",
     }
