@@ -61,3 +61,34 @@ class StudentPerformanceResponse(BaseModel):
     score_history: List[ScoreHistoryItem] = Field(default_factory=list)
     scoreHistory: List[ScoreHistoryItem] = Field(default_factory=list)
     summary: PerformanceSummary
+
+
+class ScoreUpdateSchema(BaseModel):
+    assessment_name: Optional[str] = None
+    category: Optional[str] = None
+    score: Optional[float] = None
+    max_marks: Optional[float] = None
+    date: Optional[str] = None
+
+
+class ScoreItemResponse(BaseModel):
+    id: int
+    student_id: int
+    register_no: str
+    student_name: str
+    assessment_name: str
+    category: str
+    score: float
+    max_marks: float
+    percentage: float
+    date: str
+
+    class Config:
+        from_attributes = True
+
+
+class ScoreListResponse(BaseModel):
+    items: List[ScoreItemResponse]
+    total: int
+    page: int
+    limit: int

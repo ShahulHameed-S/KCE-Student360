@@ -41,5 +41,35 @@ export const uploadService = {
       console.warn("Get Scores Count API failed:", error.message);
       return 0;
     }
+  },
+
+  getScores: async (params = {}) => {
+    try {
+      const response = await api.get("/scores", { params });
+      return response.data;
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to fetch scores";
+      throw new Error(errorMsg);
+    }
+  },
+
+  updateScore: async (scoreId, updateData) => {
+    try {
+      const response = await api.put(`/scores/${scoreId}`, updateData);
+      return response.data;
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to update score";
+      throw new Error(errorMsg);
+    }
+  },
+
+  deleteScore: async (scoreId) => {
+    try {
+      const response = await api.delete(`/scores/${scoreId}`);
+      return response.data;
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to delete score";
+      throw new Error(errorMsg);
+    }
   }
 };

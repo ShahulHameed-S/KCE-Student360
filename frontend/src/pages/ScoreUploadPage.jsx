@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { uploadService } from "../services/uploadService";
 import { useAuth } from "../hooks/useAuth";
 import LoadingSpinner from "../components/common/LoadingSpinner";
+import { ManageScoresTable } from "../components/scores/ManageScoresTable";
 import { safeFixed } from "../utils/formatters";
 import {
   FileSpreadsheet,
@@ -23,6 +24,7 @@ export const ScoreUploadPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [uploadResult, setUploadResult] = useState(null);
+  const [manageRefreshKey, setManageRefreshKey] = useState(0);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -55,6 +57,7 @@ export const ScoreUploadPage = () => {
     try {
       const data = await uploadService.uploadExcelScores(file, userRole);
       setUploadResult(data);
+      setManageRefreshKey((k) => k + 1);
     } catch (err) {
       setError(err.message || "Failed to parse scores sheet. Please check the network or backend server.");
     } finally {
@@ -284,6 +287,11 @@ export const ScoreUploadPage = () => {
           </div>
         </div>
 
+      </div>
+
+      {/* Manage Uploaded Scores Section */}
+      <div className="pt-4">
+        <ManageScoresTable key={manageRefreshKey} />
       </div>
     </div>
   );
