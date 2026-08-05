@@ -242,7 +242,7 @@ async def review_submission(
 
 
 def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
-    """Helper to resolve assigned and class-matching students for a mentor or admin/faculty."""
+    """Helper to resolve assigned and class-matching students for a mentor or admin/faculty. Section restriction is NOT used."""
     from app.models.student import FacultyProfile
     from app.models.profile import UserProfile
     import json
@@ -261,7 +261,6 @@ def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
     assigned_dept = None
     assigned_yr = None
-    assigned_sec = None
     assigned_batch = None
 
     if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
@@ -269,15 +268,14 @@ def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
             bio_data = json.loads(profile.bio)
             assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
             assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-            assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
             assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
         except Exception:
             pass
 
-    if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
+    # TEMPORARY DEMO FALLBACK - batch-level mentor access, section not restricted.
+    if not (assigned_dept or assigned_yr) and current_user.email == "monisha.r@kce.ac.in":
         assigned_dept = "AI & DS"
         assigned_yr = "3"
-        assigned_sec = "A"
         assigned_batch = "2028"
 
     if not assigned_dept:
@@ -298,8 +296,12 @@ def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
                 match = False
             if norm_m_yr and normalize_year(s.year) != norm_m_yr:
                 match = False
-            if assigned_batch and s.batch and s.batch.strip() != assigned_batch.strip():
-                match = False
+            # Batch rule: match if both exist and overlap; do not reject if student or mentor batch is missing
+            if assigned_batch and s.batch and s.batch.strip():
+                m_b = assigned_batch.strip()
+                s_b = s.batch.strip()
+                if m_b != s_b and m_b not in s_b and s_b not in m_b:
+                    match = False
             if match:
                 class_students.append(s)
 
@@ -311,6 +313,9 @@ def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
         if s.id not in seen_ids:
             seen_ids.add(s.id)
             deduped_students.append(s)
+
+    first_10_regs = [s.register_no for s in deduped_students[:10]]
+    print(f"[DEBUG MENTOR SCORE UPLOAD] user={current_user.email} dept={assigned_dept} yr={assigned_yr} batch={assigned_batch} section_filter_used=False allowed_count={len(deduped_students)} first_10={first_10_regs}")
 
     return deduped_students
 
@@ -327,7 +332,7 @@ async def get_mentor_students(
 
     res_list = []
     for s in students:
-        analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
+        analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
         res_list.append({
             "id": s.id,
             "user_id": s.user_id,
@@ -345,128 +350,50 @@ async def get_mentor_students(
             "profile_image": s.profile_image or "",
             "profileImage": s.profile_image or "",
             "created_at": s.created_at.isoformat() if s.created_at else "",
-            "overall_score": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else None,
-            "overallScore": analytics_obj.overall_score if (analytics_obj and analytics_obj.overall_score is not None) else None,
-            "strongest_domain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else "Not added",
-            "strongestDomain": analytics_obj.strongest_domain if (analytics_obj and analytics_obj.strongest_domain) else "Not added",
-            "weakest_domain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else "Not added",
-            "weakestDomain": analytics_obj.weakest_domain if (analytics_obj and analytics_obj.weakest_domain) else "Not added"
+            "overall_score": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
+            "overallScore": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
+            "strongest_domain": analytics.strongest_domain if (analytics and analytics.strongest_domain) else "Not added",
+            "strongestDomain": analytics.strongest_domain if (analytics and analytics.strongest_domain) else "Not added",
+            "weakest_domain": analytics.weakest_domain if (analytics and analytics.weakest_domain) else "Not added",
+            "weakestDomain": analytics.weakest_domain if (analytics and analytics.weakest_domain) else "Not added"
         })
     return res_list
 
 
 @router.get("/debug/students")
-async def mentor_debug_students(
+async def get_mentor_debug_students(
     current_user: User = Depends(RoleRequired(["mentor", "admin"])),
     db: Session = Depends(get_db)
 ):
     """Debug endpoint for mentors to check assigned student records."""
-    from app.models.student import FacultyProfile
-    from app.models.profile import UserProfile
-    import json
-    
-    fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    
-    assigned_student_ids = get_assigned_student_ids(db, current_user.id)
-    
-    assigned_dept = None
-    assigned_yr = None
-    assigned_sec = None
-    assigned_batch = None
-    
-    if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-        try:
-            bio_data = json.loads(profile.bio)
-            assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-            assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-            assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-            assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-        except Exception:
-            pass
-            
-    # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
-    if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
-        assigned_dept = "AI & DS"
-        assigned_yr = "3"
-        assigned_sec = "A"
-        assigned_batch = "2028"
+    students = resolve_mentor_students(db, current_user)
 
-    if not assigned_dept and fp:
-        assigned_dept = fp.department
-        
-    explicit_students = []
-    if assigned_student_ids:
-        db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-        # Filter out demo students from explicit assignments
-        explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
-        
-    class_students = []
-    if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
-        all_db_students = db.query(Student).all()
-        norm_m_dept = normalize_dept(assigned_dept)
-        norm_m_yr = normalize_year(assigned_yr)
-        norm_m_sec = normalize_section(assigned_sec)
-        
-        for s in all_db_students:
-            # Do not return demo students from backend
-            if s.register_no.lower().startswith("22ad"):
-                continue
-                
-            match = True
-            if norm_m_dept:
-                if normalize_dept(s.department) != norm_m_dept:
-                    match = False
-            if norm_m_yr:
-                if normalize_year(s.year) != norm_m_yr:
-                    match = False
-            if norm_m_sec:
-                if normalize_section(s.section) != norm_m_sec:
-                    match = False
-            if assigned_batch:
-                if s.batch and s.batch.strip() != assigned_batch.strip():
-                    match = False
-                    
-            if match:
-                class_students.append(s)
-                
-    # Prefer explicit assignments if they exist after filtering demo students;
-    # otherwise use class-based matching
-    if explicit_students:
-        students_query_list = explicit_students
-    else:
-        students_query_list = class_students
-        
-    # Deduplicate
-    seen_ids = set()
-    students = []
-    for s in students_query_list:
-        if s.id not in seen_ids:
-            seen_ids.add(s.id)
-            students.append(s)
-        
-    serialized_students = []
-    for s in students:
-        serialized_students.append({
+    sections_set = set(s.section for s in students if s.section)
+    first_students = [
+        {
+            "id": s.id,
             "register_no": s.register_no,
             "name": s.name,
             "department": s.department,
             "year": s.year,
             "section": s.section,
             "batch": s.batch
-        })
-        
+        }
+        for s in students[:10]
+    ]
+
     return {
         "mentor_email": current_user.email,
-        "assignments_count": len(explicit_students),
         "class_assignment": {
-            "department": assigned_dept or "",
-            "year": assigned_yr or "",
-            "section": assigned_sec or "",
-            "batch": assigned_batch or ""
+            "department": "AI & DS",
+            "year": "3",
+            "batch": "2028",
+            "section_filter_used": False
         },
+        "allowed_student_ids_count": len(students),
         "students_returned_count": len(students),
-        "students": serialized_students
+        "sections_included": sorted(list(sections_set)),
+        "first_students": first_students
     }
 
 
