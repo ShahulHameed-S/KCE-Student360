@@ -76,6 +76,17 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
     total_data_rows = len(rows) - 1  # Exclude header
     unauthorized_count = 0
 
+    # 1. Pre-fetch all students into memory map for O(1) lookup
+    all_students = db.query(Student).all()
+    students_map = {s.register_no.strip().lower(): s for s in all_students}
+
+    # 2. Pre-fetch uploader user check once
+    uploader = db.query(User).filter(User.id == uploader_id).first() if uploader_id else None
+    valid_uploader_id = uploader.id if uploader else None
+
+    # 3. Convert allowed_student_ids to set once for O(1) lookup
+    allowed_set = set(allowed_student_ids) if allowed_student_ids is not None else None
+
     for idx, row in enumerate(rows[1:], start=2):
         # Skip empty rows
         if not any(row):
@@ -108,13 +119,14 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
                 })
                 continue
 
-            # Validate student existence (case-insensitive register_no lookup)
-            student = db.query(Student).filter(func.lower(Student.register_no) == reg_no.lower()).first()
+            # Validate student existence (O(1) in-memory lookup)
+            student = students_map.get(reg_no.lower())
             if not student:
                 errors_list.append({"row": idx, "message": f"Student with register number '{reg_no}' not found"})
                 continue
 
-            if allowed_student_ids is not None and student.id not in allowed_student_ids:
+            # Authorization check (O(1) in-memory set lookup)
+            if allowed_set is not None and student.id not in allowed_set:
                 unauthorized_count += 1
                 errors_list.append({"row": idx, "message": "Student not assigned to this mentor"})
                 continue
@@ -151,10 +163,6 @@ def process_scores_excel(db: Session, file_bytes: bytes, uploader_id: int, allow
                 parsed_date = datetime.utcnow()  # Fallback to current time if parsing fails
 
             percentage = round((score / max_marks) * 100.0, 2)
-
-            # Check if uploader user exists
-            uploader = db.query(User).filter(User.id == uploader_id).first() if uploader_id else None
-            valid_uploader_id = uploader.id if uploader else None
 
             # Construct database model record
             score_record = AssessmentScore(

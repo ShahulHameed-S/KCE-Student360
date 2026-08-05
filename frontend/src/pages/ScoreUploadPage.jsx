@@ -147,7 +147,7 @@ export const ScoreUploadPage = () => {
             </form>
           ) : loading ? (
             <div className="py-12">
-              <LoadingSpinner size="lg" text="Parsing schema columns and validating records..." />
+              <LoadingSpinner size="lg" text="Processing marks and recalculating leaderboard. Please wait..." />
             </div>
           ) : (
             /* Upload Report summary */

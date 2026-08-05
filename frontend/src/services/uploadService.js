@@ -8,6 +8,15 @@ export const uploadService = {
 
       const endpoint = userRole === "mentor" ? "/mentor/upload/scores" : "/scores/upload";
 
+      if (!import.meta.env.PROD) {
+        console.log("Score Upload Request Params:", {
+          role: userRole,
+          url: endpoint,
+          timeout: 180000,
+          fileName: file?.name
+        });
+      }
+
       const response = await api.post(endpoint, formData, {
         headers: {
           "Content-Type": "multipart/form-data"
@@ -22,7 +31,7 @@ export const uploadService = {
   },
 
   // Alias for API-readiness: POST /scores/upload
-  uploadScores: async (file) => uploadService.uploadExcelScores(file),
+  uploadScores: async (file, userRole = "admin") => uploadService.uploadExcelScores(file, userRole),
 
   getScoresCount: async () => {
     try {

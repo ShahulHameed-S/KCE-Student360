@@ -54,11 +54,10 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
             if fp:
                 assigned_dept = fp.department
 
-        if assigned_dept or assigned_yr or assigned_sec or assigned_batch:
+        if assigned_dept or assigned_yr or assigned_batch:
             all_db_students = db.query(Student).all()
             norm_m_dept = normalize_dept(assigned_dept)
             norm_m_yr = normalize_year(assigned_yr)
-            norm_m_sec = normalize_section(assigned_sec)
 
             for s in all_db_students:
                 if s.register_no.lower().startswith("22ad"):
@@ -67,8 +66,6 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                 if norm_m_dept and normalize_dept(s.department) != norm_m_dept:
                     match = False
                 if norm_m_yr and normalize_year(s.year) != norm_m_yr:
-                    match = False
-                if norm_m_sec and normalize_section(s.section) != norm_m_sec:
                     match = False
                 if assigned_batch and s.batch and s.batch.strip() != assigned_batch.strip():
                     match = False
