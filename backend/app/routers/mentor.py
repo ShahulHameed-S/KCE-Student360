@@ -242,82 +242,18 @@ async def review_submission(
 
 
 def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
-    """Helper to resolve assigned and class-matching students for a mentor or admin/faculty. Section restriction is NOT used."""
-    from app.models.student import FacultyProfile
-    from app.models.profile import UserProfile
-    import json
-
+    """Helper to resolve assigned students for a mentor (via mentor_assignments) or all students for admin/faculty."""
     if current_user.role in ["admin", "faculty"]:
         all_students = db.query(Student).all()
         return [s for s in all_students if not s.register_no.lower().startswith("22ad")]
 
-    explicit_students = []
     assigned_student_ids = get_assigned_student_ids(db, current_user.id)
-    if assigned_student_ids:
-        db_assigned = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-        explicit_students = [s for s in db_assigned if not s.register_no.lower().startswith("22ad")]
+    if not assigned_student_ids:
+        return []
 
-    class_students = []
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-    assigned_dept = None
-    assigned_yr = None
-    assigned_batch = None
-
-    if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-        try:
-            bio_data = json.loads(profile.bio)
-            assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-            assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-            assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-        except Exception:
-            pass
-
-    # TEMPORARY DEMO FALLBACK - batch-level mentor access, section not restricted.
-    if not (assigned_dept or assigned_yr) and current_user.email == "monisha.r@kce.ac.in":
-        assigned_dept = "AI & DS"
-        assigned_yr = "3"
-        assigned_batch = "2028"
-
-    if not assigned_dept:
-        fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-        if fp:
-            assigned_dept = fp.department
-
-    if assigned_dept or assigned_yr or assigned_batch:
-        all_db_students = db.query(Student).all()
-        norm_m_dept = normalize_dept(assigned_dept)
-        norm_m_yr = normalize_year(assigned_yr)
-
-        for s in all_db_students:
-            if s.register_no.lower().startswith("22ad"):
-                continue
-            match = True
-            if norm_m_dept and normalize_dept(s.department) != norm_m_dept:
-                match = False
-            if norm_m_yr and normalize_year(s.year) != norm_m_yr:
-                match = False
-            # Batch rule: match if both exist and overlap; do not reject if student or mentor batch is missing
-            if assigned_batch and s.batch and s.batch.strip():
-                m_b = assigned_batch.strip()
-                s_b = s.batch.strip()
-                if m_b != s_b and m_b not in s_b and s_b not in m_b:
-                    match = False
-            if match:
-                class_students.append(s)
-
-    # Combine both explicit assigned students and class matching students
-    combined_list = explicit_students + class_students
-    seen_ids = set()
-    deduped_students = []
-    for s in combined_list:
-        if s.id not in seen_ids:
-            seen_ids.add(s.id)
-            deduped_students.append(s)
-
-    first_10_regs = [s.register_no for s in deduped_students[:10]]
-    print(f"[DEBUG MENTOR SCORE UPLOAD] user={current_user.email} dept={assigned_dept} yr={assigned_yr} batch={assigned_batch} section_filter_used=False allowed_count={len(deduped_students)} first_10={first_10_regs}")
-
-    return deduped_students
+    assigned_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+    print(f"[MENTOR ACCESS] user={current_user.email} assigned_count={len(assigned_students)}")
+    return assigned_students
 
 
 @router.get("/students")
@@ -368,31 +304,18 @@ async def get_mentor_debug_students(
     """Debug endpoint for mentors to check assigned student records."""
     students = resolve_mentor_students(db, current_user)
 
-    sections_set = set(s.section for s in students if s.section)
     first_students = [
         {
-            "id": s.id,
             "register_no": s.register_no,
-            "name": s.name,
-            "department": s.department,
-            "year": s.year,
-            "section": s.section,
-            "batch": s.batch
+            "name": s.name
         }
         for s in students[:10]
     ]
 
     return {
         "mentor_email": current_user.email,
-        "class_assignment": {
-            "department": "AI & DS",
-            "year": "3",
-            "batch": "2028",
-            "section_filter_used": False
-        },
-        "allowed_student_ids_count": len(students),
-        "students_returned_count": len(students),
-        "sections_included": sorted(list(sections_set)),
+        "assignment_method": "register_number",
+        "assigned_students_count": len(students),
         "first_students": first_students
     }
 

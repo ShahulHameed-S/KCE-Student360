@@ -1111,9 +1111,226 @@ async def admin_debug_scores(
     }
 
 
-from fastapi import UploadFile, File
-from app.services.upload_service import process_scores_excel
-from app.schemas.score import UploadScoresResponse
+from pydantic import BaseModel, Field
+
+class AssignStudentsPayload(BaseModel):
+    mentor_email: Optional[str] = None
+    mentor_id: Optional[int] = None
+    register_numbers: List[str] = Field(default_factory=list)
+
+
+@router.post("/mentors/assign-students")
+@router.post("/mentors/{mentor_id}/assign-students")
+async def admin_assign_students_to_mentor(
+    payload: AssignStudentsPayload,
+    mentor_id: Optional[int] = None,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Assigns students to a mentor by register numbers."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    target_mentor_id = mentor_id or payload.mentor_id
+    target_email = payload.mentor_email
+
+    mentor_user = None
+    if target_email:
+        mentor_user = db.query(User).filter(func.lower(User.email) == func.lower(target_email.strip())).first()
+
+    if not mentor_user and target_mentor_id:
+        mentor_user = db.query(User).filter(User.id == target_mentor_id).first()
+
+    if not mentor_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor not found with provided email '{target_email}' or ID '{target_mentor_id}'"
+        )
+
+    # Process register numbers
+    raw_regs = payload.register_numbers
+    parsed_regs = []
+    for item in raw_regs:
+        if not item:
+            continue
+        for line in str(item).replace(",", "\n").splitlines():
+            cleaned = line.strip()
+            if cleaned and cleaned not in parsed_regs:
+                parsed_regs.append(cleaned)
+
+    assigned_count = 0
+    already_assigned_count = 0
+    not_found = []
+    errors = []
+
+    for reg in parsed_regs:
+        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(reg)).first()
+        if not student:
+            not_found.append(reg)
+            continue
+
+        existing = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == mentor_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+
+        if existing:
+            already_assigned_count += 1
+        else:
+            assignment = MentorAssignment(
+                mentor_id=mentor_user.id,
+                student_id=student.id
+            )
+            db.add(assignment)
+            assigned_count += 1
+
+    db.commit()
+
+    return {
+        "success": True,
+        "mentor_email": mentor_user.email,
+        "assigned": assigned_count,
+        "already_assigned": already_assigned_count,
+        "not_found": not_found,
+        "errors": errors
+    }
+
+
+@router.post("/mentors/upload-assignments")
+async def admin_upload_mentor_assignments(
+    file: UploadFile = File(...),
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Uploads Excel sheet to bulk assign students to mentors."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    try:
+        file_bytes = await file.read()
+        workbook = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Excel file format: {str(e)}")
+
+    sheet = workbook.active
+    rows = list(sheet.iter_rows(values_only=True))
+
+    if not rows or len(rows) < 2:
+        return {
+            "success": False,
+            "assigned": 0,
+            "already_assigned": 0,
+            "not_found": [],
+            "errors": ["Excel file is empty or has no data rows"]
+        }
+
+    headers = [str(c).strip().lower().replace("_", " ") if c is not None else "" for c in rows[0]]
+
+    email_col = None
+    reg_col = None
+
+    for idx, h in enumerate(headers):
+        if h in ["mentor email", "mentor_email", "email", "mentor"]:
+            email_col = idx
+        elif h in ["register no", "register_no", "reg no", "reg_no", "register number", "reg number"]:
+            reg_col = idx
+
+    if email_col is None or reg_col is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required columns in Excel: 'Mentor Email' and 'Register No'"
+        )
+
+    all_users = db.query(User).all()
+    user_map = {u.email.strip().lower(): u for u in all_users if u.email}
+
+    all_students = db.query(Student).all()
+    student_map = {s.register_no.strip().lower(): s for s in all_students if s.register_no}
+
+    assigned_count = 0
+    already_assigned_count = 0
+    not_found = []
+    errors = []
+
+    for r_idx, row in enumerate(rows[1:], start=2):
+        if not any(row):
+            continue
+
+        raw_email = str(row[email_col]).strip() if row[email_col] is not None else ""
+        raw_reg = str(row[reg_col]).strip() if row[reg_col] is not None else ""
+        if raw_reg.endswith(".0"):
+            raw_reg = raw_reg[:-2]
+
+        if not raw_email or not raw_reg:
+            continue
+
+        mentor_user = user_map.get(raw_email.lower())
+        if not mentor_user:
+            errors.append(f"Row {r_idx}: Mentor with email '{raw_email}' not found")
+            continue
+
+        student = student_map.get(raw_reg.lower())
+        if not student:
+            not_found.append(raw_reg)
+            continue
+
+        existing = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == mentor_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+
+        if existing:
+            already_assigned_count += 1
+        else:
+            assignment = MentorAssignment(
+                mentor_id=mentor_user.id,
+                student_id=student.id
+            )
+            db.add(assignment)
+            assigned_count += 1
+
+    db.commit()
+
+    return {
+        "success": True,
+        "assigned": assigned_count,
+        "already_assigned": already_assigned_count,
+        "not_found": not_found,
+        "errors": errors
+    }
+
+
+@router.get("/debug/mentor-assignments/{mentor_email}")
+async def admin_debug_mentor_assignments(
+    mentor_email: str,
+    current_user: User = Depends(RoleRequired(["admin", "faculty", "mentor"])),
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to check mentor student assignment records."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    mentor_user = db.query(User).filter(func.lower(User.email) == func.lower(mentor_email.strip())).first()
+    if not mentor_user:
+        return {
+            "mentor_found": False,
+            "mentor_email": mentor_email,
+            "assigned_count": 0,
+            "assigned_register_numbers": []
+        }
+
+    assignments = db.query(MentorAssignment, Student)\
+        .join(Student, MentorAssignment.student_id == Student.id)\
+        .filter(MentorAssignment.mentor_id == mentor_user.id).all()
+
+    assigned_regs = [s.register_no for a, s in assignments]
+
+    return {
+        "mentor_found": True,
+        "assigned_count": len(assigned_regs),
+        "assigned_register_numbers": assigned_regs
+    }
+
 
 @router.post("/upload/scores", response_model=UploadScoresResponse)
 @router.post("/scores/upload", response_model=UploadScoresResponse)

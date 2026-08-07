@@ -136,67 +136,17 @@ async def debug_student_by_id(
         mentor_access = True
         access_reason = "admin" if current_user.role == "admin" else "faculty"
     elif current_user.role == "mentor":
-        if student.register_no and student.register_no.lower().startswith("22ad"):
+        is_assigned = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+        
+        if is_assigned:
             mentor_access = True
-            access_reason = "demo_bypass"
+            access_reason = "explicit_assignment"
         else:
-            is_assigned = db.query(MentorAssignment).filter(
-                MentorAssignment.mentor_id == current_user.id,
-                MentorAssignment.student_id == student.id
-            ).first()
-            
-            if is_assigned:
-                mentor_access = True
-                access_reason = "explicit_assignment"
-            else:
-                from app.models.profile import UserProfile
-                import json
-                profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-                assigned_dept = None
-                assigned_yr = None
-                assigned_sec = None
-                assigned_batch = None
-                if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-                    try:
-                        bio_data = json.loads(profile.bio)
-                        assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-                        assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-                        assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-                        assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-                    except Exception:
-                        pass
-                        
-                if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
-                    assigned_dept = "AI & DS"
-                    assigned_yr = "3"
-                    assigned_sec = "A"
-                    assigned_batch = "2028"
-                        
-                if not assigned_dept:
-                    from app.models.student import FacultyProfile
-                    fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-                    if fp:
-                        assigned_dept = fp.department
-                
-                from app.routers.mentor import normalize_dept, normalize_year, normalize_section
-                
-                matches_class = True
-                if assigned_dept:
-                    if normalize_dept(student.department) != normalize_dept(assigned_dept):
-                        matches_class = False
-                if assigned_yr:
-                    if normalize_year(student.year) != normalize_year(assigned_yr):
-                        matches_class = False
-                if assigned_sec:
-                    if normalize_section(student.section) != normalize_section(assigned_sec):
-                        matches_class = False
-                if assigned_batch:
-                    if student.batch and student.batch.strip() != assigned_batch.strip():
-                        matches_class = False
-                    
-                if (assigned_dept or assigned_yr or assigned_sec or assigned_batch) and matches_class:
-                    mentor_access = True
-                    access_reason = "class_match"
+            mentor_access = False
+            access_reason = "not_assigned"
 
     projects_count = db.query(StudentProject).filter(StudentProject.student_id == student.id).count()
     certs_count = db.query(StudentCertification).filter(StudentCertification.student_id == student.id).count()
@@ -256,57 +206,10 @@ async def get_student_by_id(
         ).first()
         
         if not is_assigned:
-            from app.models.profile import UserProfile
-            import json
-            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-            assigned_dept = None
-            assigned_yr = None
-            assigned_sec = None
-            assigned_batch = None
-            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-                try:
-                    bio_data = json.loads(profile.bio)
-                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-                except Exception:
-                    pass
-                    
-            # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
-            if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
-                assigned_dept = "AI & DS"
-                assigned_yr = "3"
-                assigned_sec = "A"
-                assigned_batch = "2028"
-                    
-            if not assigned_dept:
-                from app.models.student import FacultyProfile
-                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-                if fp:
-                    assigned_dept = fp.department
-            
-            from app.routers.mentor import normalize_dept, normalize_year, normalize_section
-            
-            matches_class = True
-            if assigned_dept:
-                if normalize_dept(student.department) != normalize_dept(assigned_dept):
-                    matches_class = False
-            if assigned_yr:
-                if normalize_year(student.year) != normalize_year(assigned_yr):
-                    matches_class = False
-            if assigned_sec:
-                if normalize_section(student.section) != normalize_section(assigned_sec):
-                    matches_class = False
-            if assigned_batch:
-                if student.batch and student.batch.strip() != assigned_batch.strip():
-                    matches_class = False
-                
-            if not (assigned_dept or assigned_yr or assigned_sec or assigned_batch) or not matches_class:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Mentor is not assigned to this student"
-                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not assigned to this student"
+            )
 
     # 2. Fetch related details
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
@@ -509,67 +412,16 @@ async def get_student_performance(
 
     # 2. Access control check
     if current_user.role == "mentor":
-        # Allow demo students (starting with 22ad) unconditionally for review
-        if student.register_no and student.register_no.lower().startswith("22ad"):
-            is_assigned = True
-        else:
-            is_assigned = db.query(MentorAssignment).filter(
-                MentorAssignment.mentor_id == current_user.id,
-                MentorAssignment.student_id == student.id
-            ).first()
+        is_assigned = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
         
         if not is_assigned:
-            from app.models.profile import UserProfile
-            import json
-            profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
-            assigned_dept = None
-            assigned_yr = None
-            assigned_sec = None
-            assigned_batch = None
-            if profile and profile.bio and profile.bio.startswith("{") and profile.bio.endswith("}"):
-                try:
-                    bio_data = json.loads(profile.bio)
-                    assigned_dept = bio_data.get("assignedDepartment") or bio_data.get("department")
-                    assigned_yr = bio_data.get("assignedYear") or bio_data.get("year")
-                    assigned_sec = bio_data.get("assignedSection") or bio_data.get("section")
-                    assigned_batch = bio_data.get("assignedBatch") or bio_data.get("batch")
-                except Exception:
-                    pass
-                    
-            # TEMPORARY DEMO FALLBACK - should be replaced with admin mentor assignment UI.
-            if not (assigned_dept or assigned_yr or assigned_sec) and current_user.email == "monisha.r@kce.ac.in":
-                assigned_dept = "AI & DS"
-                assigned_yr = "3"
-                assigned_sec = "A"
-                assigned_batch = "2028"
-                    
-            if not assigned_dept:
-                from app.models.student import FacultyProfile
-                fp = db.query(FacultyProfile).filter(FacultyProfile.user_id == current_user.id).first()
-                if fp:
-                    assigned_dept = fp.department
-            
-            from app.routers.mentor import normalize_dept, normalize_year, normalize_section
-            
-            matches_class = True
-            if assigned_dept:
-                if normalize_dept(student.department) != normalize_dept(assigned_dept):
-                    matches_class = False
-            if assigned_yr:
-                if normalize_year(student.year) != normalize_year(assigned_yr):
-                    matches_class = False
-            if assigned_sec:
-                if normalize_section(student.section) != normalize_section(assigned_sec):
-                    matches_class = False
-            if assigned_batch:
-                if student.batch and student.batch.strip() != assigned_batch.strip():
-                    matches_class = False
-                
-            if not (assigned_dept or assigned_yr or assigned_sec or assigned_batch) or not matches_class:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Mentor is not assigned to this student"
-                )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not assigned to this student"
+            )
 
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
     scores = db.query(AssessmentScore).filter(

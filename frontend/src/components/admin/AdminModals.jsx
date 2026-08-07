@@ -3,6 +3,7 @@ import { X, UserPlus, UserMinus, UserCog, Eye, Edit2, Trash2 } from "lucide-reac
 import mockUsers from "../../data/mockUsers";
 import { mockStudents } from "../../data/mockStudents";
 import { adminUploadService } from "../../services/adminUploadService";
+import { assignStudentsToMentor, uploadMentorAssignmentsExcel } from "../../services/adminService";
 
 // Reusable Modal Wrapper
 const Modal = ({ isOpen, onClose, title, maxWidth = "max-w-4xl", children }) => {
@@ -1771,127 +1772,217 @@ export const RemoveMentorModal = ({ isOpen, onClose, onRemove }) => {
 // 4. ASSIGN MENTOR MODAL
 // ====================================================
 export const AssignMentorModal = ({ isOpen, onClose, mentors, onAssign }) => {
-  const [formData, setFormData] = useState({
-    mentorId: "",
-    department: "",
-    year: "3",
-    section: "A",
-    assignEntireClass: false,
-    selectedStudents: ""
-  });
-  const [success, setSuccess] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onAssign(formData);
-    setSuccess("Mentor assigned successfully");
-    setTimeout(() => {
-      setSuccess("");
-      setFormData({
-        mentorId: "",
-        department: "",
-        year: "3",
-        section: "A",
-        assignEntireClass: false,
-        selectedStudents: ""
-      });
-      onClose();
-    }, 1500);
-  };
+  const [activeTab, setActiveTab] = useState("textarea");
+  const [selectedMentorEmail, setSelectedMentorEmail] = useState("");
+  const [registerText, setRegisterText] = useState("");
+  const [excelFile, setExcelFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const mentorList = mentors || mockUsers.filter(u => u.role === 'mentor');
 
+  const handleTextSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedMentorEmail) {
+      setErrorMsg("Please select a mentor.");
+      return;
+    }
+    const regs = registerText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    if (regs.length === 0) {
+      setErrorMsg("Please enter at least one register number.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMsg("");
+      setResult(null);
+
+      const res = await assignStudentsToMentor(selectedMentorEmail, regs);
+      setResult(res);
+      if (onAssign) onAssign(res);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || err.message || "Failed to assign students");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExcelSubmit = async (e) => {
+    e.preventDefault();
+    if (!excelFile) {
+      setErrorMsg("Please select an Excel file to upload.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setErrorMsg("");
+      setResult(null);
+
+      const res = await uploadMentorAssignmentsExcel(excelFile);
+      setResult(res);
+      if (onAssign) onAssign(res);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || err.message || "Failed to upload assignment Excel");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Mentor" maxWidth="max-w-md">
-      {success && (
-        <div className="mb-4 bg-green-50 border border-green-200 text-green-800 p-2.5 font-bold text-center">
-          {success}
-        </div>
-      )}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-[10px] uppercase font-bold text-[#214C55]">Select Mentor</label>
-          <select 
-            required 
-            value={formData.mentorId}
-            onChange={(e) => setFormData({...formData, mentorId: e.target.value})}
-            className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign Students to Mentor" maxWidth="max-w-xl">
+      <div className="space-y-4 text-xs font-semibold">
+        {/* Tab Switcher */}
+        <div className="flex border-b border-[#D1D5DB] mb-4">
+          <button
+            type="button"
+            onClick={() => { setActiveTab("textarea"); setResult(null); setErrorMsg(""); }}
+            className={`py-2 px-4 font-bold uppercase text-xs rounded-none border-b-2 transition-colors ${
+              activeTab === "textarea"
+                ? "border-[#C76F2B] text-[#C76F2B] bg-gray-50"
+                : "border-transparent text-[#6B7280] hover:text-[#214C55]"
+            }`}
           >
-            <option value="">Choose Mentor</option>
-            {mentorList.map(m => (
-              <option key={m.id} value={m.id}>{m.name} ({m.department})</option>
-            ))}
-          </select>
+            Assign by Register Numbers
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab("excel"); setResult(null); setErrorMsg(""); }}
+            className={`py-2 px-4 font-bold uppercase text-xs rounded-none border-b-2 transition-colors ${
+              activeTab === "excel"
+                ? "border-[#C76F2B] text-[#C76F2B] bg-gray-50"
+                : "border-transparent text-[#6B7280] hover:text-[#214C55]"
+            }`}
+          >
+            Upload Assignment Excel
+          </button>
         </div>
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="block text-[10px] uppercase font-bold text-[#214C55]">Department</label>
-            <input 
-              required 
-              value={formData.department}
-              onChange={(e) => setFormData({...formData, department: e.target.value})}
-              className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none" 
-              placeholder="e.g. IT"
-            />
-          </div>
-          <div className="w-1/4">
-            <label className="block text-[10px] uppercase font-bold text-[#214C55]">Year</label>
-            <input 
-              required 
-              value={formData.year}
-              onChange={(e) => setFormData({...formData, year: e.target.value})}
-              className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none" 
-            />
-          </div>
-          <div className="w-1/4">
-            <label className="block text-[10px] uppercase font-bold text-[#214C55]">Section</label>
-            <input 
-              required 
-              value={formData.section}
-              onChange={(e) => setFormData({...formData, section: e.target.value})}
-              className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none" 
-            />
-          </div>
-        </div>
-        <div>
-          <label className="flex items-center space-x-2 text-xs font-bold text-[#214C55] cursor-pointer">
-            <input 
-              type="checkbox" 
-              checked={formData.assignEntireClass}
-              onChange={(e) => setFormData({...formData, assignEntireClass: e.target.checked})}
-              className="rounded-none border-[#D1D5DB] text-[#C76F2B] focus:ring-0 focus:outline-[#C76F2B] w-4 h-4" 
-            />
-            <span className="uppercase text-[10px] tracking-wide">Assign Entire Class</span>
-          </label>
-        </div>
-        {!formData.assignEntireClass && (
-          <div>
-            <label className="block text-[10px] uppercase font-bold text-[#214C55]">Select Students (Register Numbers)</label>
-            <input 
-              required={!formData.assignEntireClass}
-              value={formData.selectedStudents}
-              onChange={(e) => setFormData({...formData, selectedStudents: e.target.value})}
-              className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none" 
-              placeholder="e.g. 22AD001, 22AD002..."
-            />
+
+        {errorMsg && (
+          <div className="bg-red-50 border border-red-200 text-red-800 p-2.5 font-bold text-center">
+            {errorMsg}
           </div>
         )}
-        <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
-          <button 
-            type="button" 
-            onClick={onClose} 
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none"
-          >
-            Assign Mentor
-          </button>
-        </div>
-      </form>
+
+        {activeTab === "textarea" && (
+          <form onSubmit={handleTextSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-[#214C55]">Select Mentor</label>
+              <select
+                required
+                value={selectedMentorEmail}
+                onChange={(e) => setSelectedMentorEmail(e.target.value)}
+                className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+              >
+                <option value="">Choose Mentor</option>
+                {mentorList.map(m => (
+                  <option key={m.id || m.email} value={m.email}>{m.name || m.email} ({m.email})</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-[#214C55]">
+                Register Numbers (One per line or comma separated)
+              </label>
+              <textarea
+                required
+                rows={6}
+                value={registerText}
+                onChange={(e) => setRegisterText(e.target.value)}
+                className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-mono focus:outline-[#C76F2B] rounded-none"
+                placeholder={`717824I107\n717824I108\n717824I109`}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none disabled:opacity-50"
+              >
+                {loading ? "Assigning..." : "Assign Students"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {activeTab === "excel" && (
+          <form onSubmit={handleExcelSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-[#214C55]">
+                Upload Excel Sheet (.xlsx, .xls)
+              </label>
+              <p className="text-[11px] text-[#6B7280] mb-2">
+                Excel must contain headers: <strong>Mentor Email</strong>, <strong>Register No</strong>, <strong>Student Name</strong>
+              </p>
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={(e) => setExcelFile(e.target.files[0])}
+                className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs font-semibold focus:outline-[#C76F2B] rounded-none bg-white"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading || !excelFile}
+                className="px-4 py-2 bg-[#214C55] hover:bg-[#163941] text-white text-xs font-bold uppercase transition-colors rounded-none disabled:opacity-50"
+              >
+                {loading ? "Processing..." : "Upload Assignment Excel"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Result Display */}
+        {result && (
+          <div className="mt-4 p-4 bg-gray-50 border border-[#D1D5DB] space-y-2 text-xs">
+            <h4 className="font-extrabold uppercase text-[#214C55]">Assignment Results Summary</h4>
+            <div className="grid grid-cols-2 gap-2 text-[#111827]">
+              <div><span className="font-bold text-green-700">Newly Assigned:</span> {result.assigned ?? 0}</div>
+              <div><span className="font-bold text-blue-700">Already Assigned:</span> {result.already_assigned ?? 0}</div>
+            </div>
+
+            {result.not_found && result.not_found.length > 0 && (
+              <div className="mt-2 text-amber-800 bg-amber-50 p-2 border border-amber-200">
+                <span className="font-bold">Register Numbers Not Found ({result.not_found.length}):</span>
+                <div className="font-mono text-[11px] mt-1 max-h-24 overflow-y-auto">
+                  {result.not_found.join(", ")}
+                </div>
+              </div>
+            )}
+
+            {result.errors && result.errors.length > 0 && (
+              <div className="mt-2 text-red-800 bg-red-50 p-2 border border-red-200">
+                <span className="font-bold">Errors ({result.errors.length}):</span>
+                <ul className="list-disc pl-4 text-[11px] mt-1 max-h-24 overflow-y-auto">
+                  {result.errors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </Modal>
   );
 };

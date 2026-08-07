@@ -51,3 +51,22 @@ export const getAdminUsers = async () => {
   return response.data;
 };
 
+export const assignStudentsToMentor = async (mentorEmail, registerNumbers) => {
+  const payload = {
+    mentor_email: mentorEmail,
+    register_numbers: Array.isArray(registerNumbers) ? registerNumbers : [registerNumbers]
+  };
+  const response = await api.post("/admin/mentors/assign-students", payload);
+  return response.data;
+};
+
+export const uploadMentorAssignmentsExcel = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await api.post("/admin/mentors/upload-assignments", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+  return response.data;
+};
+
+
