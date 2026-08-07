@@ -46,10 +46,7 @@ def normalize_section(sec: str) -> str:
             s = parts[-1]
     return s
 
-def get_assigned_student_ids(db: Session, mentor_id: int) -> List[int]:
-    """Helper to retrieve Student IDs assigned to a specific mentor."""
-    assignments = db.query(MentorAssignment).filter(MentorAssignment.mentor_id == mentor_id).all()
-    return [a.student_id for a in assignments]
+from app.services.mentor_assignment_service import get_assigned_student_ids, resolve_mentor_students
 
 def build_unified_approval_item(item, item_type: str) -> dict:
     """Helper to convert projects/certs/achievements to a unified approval item dictionary."""
@@ -240,20 +237,6 @@ async def review_submission(
 
     return build_unified_approval_item(item, item_type_norm)
 
-
-def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
-    """Helper to resolve assigned students for a mentor (via mentor_assignments) or all students for admin/faculty."""
-    if current_user.role in ["admin", "faculty"]:
-        all_students = db.query(Student).all()
-        return [s for s in all_students if not s.register_no.lower().startswith("22ad")]
-
-    assigned_student_ids = get_assigned_student_ids(db, current_user.id)
-    if not assigned_student_ids:
-        return []
-
-    assigned_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-    print(f"[MENTOR ACCESS] user={current_user.email} assigned_count={len(assigned_students)}")
-    return assigned_students
 
 
 @router.get("/students")

@@ -13,6 +13,7 @@ from app.models.profile import UserProfile, StudentAbout
 from app.models.portfolio import PortfolioCustomization
 from app.utils.security import get_password_hash
 from app.services.analytics_service import recalculate_student_analytics
+from app.schemas.score import UploadScoresResponse
 
 router = APIRouter()
 

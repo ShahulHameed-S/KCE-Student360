@@ -12,7 +12,7 @@ from app.schemas.score import UploadScoresResponse, ScoreListResponse, ScoreItem
 from app.services.upload_service import process_scores_excel
 from app.services.analytics_service import recalculate_student_analytics
 from app.utils.domain_utils import normalize_domain
-from app.routers.mentor import resolve_mentor_students
+from app.services.mentor_assignment_service import resolve_mentor_students
 
 router = APIRouter()
 

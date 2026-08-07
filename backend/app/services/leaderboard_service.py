@@ -15,7 +15,7 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
     # 1. Determine student scope
     target_students = []
     if current_user and current_user.role == "mentor":
-        from app.routers.mentor import resolve_mentor_students
+        from app.services.mentor_assignment_service import resolve_mentor_students
         target_students = resolve_mentor_students(db, current_user)
     else:
         # Admin, Faculty, or public
