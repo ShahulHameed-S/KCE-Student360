@@ -83,7 +83,7 @@ def serialize_student_flat(student: Student, db: Session) -> dict:
 async def get_all_students(db: Session = Depends(get_db)):
     """Retrieves all students list with analytics averages."""
     students = db.query(Student).all()
-    return [serialize_student_flat(s, db) for s in students]
+    return [serialize_student_flat(s, db) for s in students if not s.register_no.lower().startswith("22ad")]
 
 @router.get("/recommend")
 async def recommend_students(

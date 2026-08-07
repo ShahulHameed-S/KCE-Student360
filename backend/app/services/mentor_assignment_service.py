@@ -19,7 +19,8 @@ def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
         return []
 
     assigned_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
-    return assigned_students
+    # Filter out demo 22AD students so only real assigned students are returned
+    return [s for s in assigned_students if not s.register_no.lower().startswith("22ad")]
 
 def get_mentor_allowed_student_ids(db: Session, current_user: User) -> Optional[List[int]]:
     """Returns list of allowed student IDs for a mentor, or None for admin/faculty (unrestricted)."""

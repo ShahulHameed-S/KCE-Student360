@@ -200,7 +200,7 @@ export const StudentListPage = () => {
           options: ["DSA", "DBMS", "FullStack", "Aptitude", "Coding", "Academic", "Technical"]
         }}
         emptyTitle={user?.role === "mentor" ? "No students assigned yet" : "No Students Found"}
-        emptyDescription={user?.role === "mentor" ? "You do not have any students assigned to your classes yet." : "We couldn't find any students matching those search filters."}
+        emptyDescription={user?.role === "mentor" ? "No students assigned yet. Please ask admin to assign students by register number." : "We couldn't find any students matching those search filters."}
       />
     </div>
   );
