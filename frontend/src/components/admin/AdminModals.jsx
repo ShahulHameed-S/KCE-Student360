@@ -3,7 +3,7 @@ import { X, UserPlus, UserMinus, UserCog, Eye, Edit2, Trash2 } from "lucide-reac
 import mockUsers from "../../data/mockUsers";
 import { mockStudents } from "../../data/mockStudents";
 import { adminUploadService } from "../../services/adminUploadService";
-import { assignStudentsToMentor, uploadMentorAssignmentsExcel } from "../../services/adminService";
+import { assignStudentsToMentor, uploadMentorAssignmentsExcel, assignAllStudentsToMentor } from "../../services/adminService";
 
 // Reusable Modal Wrapper
 const Modal = ({ isOpen, onClose, title, maxWidth = "max-w-4xl", children }) => {
@@ -1897,13 +1897,40 @@ export const AssignMentorModal = ({ isOpen, onClose, mentors, onAssign }) => {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
+            <div className="flex flex-wrap justify-end gap-3 pt-3 border-t border-[#E5E5E5]">
               <button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-[#111827] text-xs font-bold border border-[#D1D5DB] transition-colors rounded-none"
               >
                 Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!selectedMentorEmail) {
+                    setErrorMsg("Please select a mentor first.");
+                    return;
+                  }
+                  const confirmed = window.confirm("Are you sure you want to assign all real uploaded students to this mentor?");
+                  if (!confirmed) return;
+                  try {
+                    setLoading(true);
+                    setErrorMsg("");
+                    setResult(null);
+                    const res = await assignAllStudentsToMentor(selectedMentorEmail);
+                    setResult(res);
+                    if (onAssign) onAssign(res);
+                  } catch (err) {
+                    setErrorMsg(err.response?.data?.detail || err.message || "Failed to assign all students");
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                className="px-4 py-2 bg-[#163941] hover:bg-[#214C55] text-white text-xs font-bold uppercase transition-colors rounded-none disabled:opacity-50"
+              >
+                {loading ? "Processing..." : "Assign All Available Students"}
               </button>
               <button
                 type="submit"

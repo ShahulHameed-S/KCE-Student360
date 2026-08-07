@@ -69,4 +69,12 @@ export const uploadMentorAssignmentsExcel = async (file) => {
   return response.data;
 };
 
+export const assignAllStudentsToMentor = async (mentorEmail) => {
+  const payload = {
+    mentor_email: mentorEmail
+  };
+  const response = await api.post("/admin/mentors/assign-all-students", payload);
+  return response.data;
+};
+
 

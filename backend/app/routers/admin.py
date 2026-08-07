@@ -1119,6 +1119,73 @@ class AssignStudentsPayload(BaseModel):
     mentor_id: Optional[int] = None
     register_numbers: List[str] = Field(default_factory=list)
 
+class AssignAllStudentsPayload(BaseModel):
+    mentor_email: Optional[str] = None
+    mentor_id: Optional[int] = None
+
+
+@router.post("/mentors/assign-all-students")
+@router.post("/mentors/{mentor_id}/assign-all-students")
+async def admin_assign_all_students_to_mentor(
+    payload: Optional[AssignAllStudentsPayload] = None,
+    mentor_id: Optional[int] = None,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """Assigns ALL available real uploaded students (excluding 22AD demo students) to a mentor."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    target_mentor_id = mentor_id or (payload.mentor_id if payload else None)
+    target_email = payload.mentor_email if payload else None
+
+    mentor_user = None
+    if target_email:
+        mentor_user = db.query(User).filter(func.lower(User.email) == func.lower(target_email.strip())).first()
+
+    if not mentor_user and target_mentor_id:
+        mentor_user = db.query(User).filter(User.id == target_mentor_id).first()
+
+    if not mentor_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mentor not found with provided email '{target_email}' or ID '{target_mentor_id}'"
+        )
+
+    all_students = db.query(Student).all()
+    real_students = [s for s in all_students if not s.register_no.lower().startswith("22ad")]
+    excluded_demo_students = len(all_students) - len(real_students)
+
+    assigned_count = 0
+    already_assigned_count = 0
+
+    existing_assignments = db.query(MentorAssignment).filter(MentorAssignment.mentor_id == mentor_user.id).all()
+    existing_student_ids = set(a.student_id for a in existing_assignments)
+
+    for student in real_students:
+        if student.id in existing_student_ids:
+            already_assigned_count += 1
+        else:
+            assignment = MentorAssignment(
+                mentor_id=mentor_user.id,
+                student_id=student.id
+            )
+            db.add(assignment)
+            assigned_count += 1
+            existing_student_ids.add(student.id)
+
+    db.commit()
+
+    return {
+        "success": True,
+        "mentor_email": mentor_user.email,
+        "assigned": assigned_count,
+        "already_assigned": already_assigned_count,
+        "total_real_students": len(real_students),
+        "excluded_demo_students": excluded_demo_students,
+        "errors": []
+    }
+
 
 @router.post("/mentors/assign-students")
 @router.post("/mentors/{mentor_id}/assign-students")

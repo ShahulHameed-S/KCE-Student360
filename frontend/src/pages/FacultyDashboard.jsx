@@ -113,6 +113,29 @@ const AssignMentorInlineForm = ({ mentors, onAssign }) => {
     }
   };
 
+  const handleAssignAllSubmit = async () => {
+    if (!selectedMentorEmail) {
+      setErrorMsg("Please select a mentor first.");
+      return;
+    }
+    const confirmed = window.confirm("Are you sure you want to assign all real uploaded students to this mentor?");
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      setErrorMsg("");
+      setResult(null);
+
+      const res = await assignAllStudentsToMentor(selectedMentorEmail);
+      setResult(res);
+      if (onAssign) onAssign(res);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.detail || err.message || "Failed to assign all students");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExcelSubmit = async (e) => {
     e.preventDefault();
     if (!excelFile) {
@@ -200,13 +223,21 @@ const AssignMentorInlineForm = ({ mentors, onAssign }) => {
             />
           </div>
 
-          <div>
+          <div className="flex flex-wrap gap-2 pt-2">
             <button
               type="submit"
               disabled={loading}
               className="px-5 py-2.5 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase transition-colors rounded-none disabled:opacity-50"
             >
               {loading ? "Assigning..." : "Assign Students"}
+            </button>
+            <button
+              type="button"
+              onClick={handleAssignAllSubmit}
+              disabled={loading}
+              className="px-5 py-2.5 bg-[#163941] hover:bg-[#214C55] text-white text-xs font-bold uppercase transition-colors rounded-none disabled:opacity-50"
+            >
+              {loading ? "Processing..." : "Assign All Available Students"}
             </button>
           </div>
         </form>
