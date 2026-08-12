@@ -31,20 +31,23 @@ ALLOWED_EXTENSIONS = {
     "achievements": {".jpg", ".jpeg", ".png", ".webp", ".pdf"}
 }
 
-def get_safe_filename(original_filename: str) -> str:
+def get_safe_filename(original_filename: str, user_id: int = None) -> str:
     """Generates a clean filename using timestamp and a random UUID."""
     ext = os.path.splitext(original_filename)[1].lower()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     random_id = uuid.uuid4().hex[:8]
+    if user_id:
+        return f"{user_id}_{timestamp}_{random_id}{ext}"
     return f"{timestamp}_{random_id}{ext}"
 
-async def save_upload_file(file: UploadFile, folder: str) -> str:
+async def save_upload_file(file: UploadFile, folder: str, user_id: int = None) -> str:
     """
     Saves an uploaded file either to Supabase Storage or to the local filesystem.
     
     Args:
         file (UploadFile): The uploaded file object.
         folder (str): Target subfolder name ('profile', 'resumes', 'projects', 'certificates', 'achievements').
+        user_id (int, optional): Authenticated user ID for filename prefix.
         
     Returns:
         str: The accessible URL/path of the saved file.
@@ -59,7 +62,7 @@ async def save_upload_file(file: UploadFile, folder: str) -> str:
             detail=f"Extension '{ext}' not allowed for category '{folder}'. Allowed: {list(ALLOWED_EXTENSIONS[folder])}"
         )
 
-    filename = get_safe_filename(file.filename)
+    filename = get_safe_filename(file.filename, user_id=user_id)
     
     # Read file content bytes
     content = await file.read()
@@ -73,8 +76,8 @@ async def save_upload_file(file: UploadFile, folder: str) -> str:
     
     if client and bucket:
         try:
-            # Path inside the bucket: folder/filename (e.g. profile/20260709_100000_abcd.png)
-            path_in_bucket = f"{folder}/{filename}"
+            folder_path = "profile-images" if folder in ["profile", "profile-images"] else folder
+            path_in_bucket = f"{folder_path}/{filename}"
             
             # Perform upload using supabase storage client
             content_type = file.content_type or "application/octet-stream"

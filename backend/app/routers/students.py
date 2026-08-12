@@ -182,6 +182,16 @@ async def debug_student_by_id(
     u_img = user_prof.profile_image if user_prof and user_prof.profile_image else ""
     s_img = student.profile_image or ""
 
+    url_http_status = 200
+    if img_url and (img_url.startswith("http://") or img_url.startswith("https://")):
+        try:
+            import urllib.request
+            req = urllib.request.Request(img_url, method='HEAD')
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                url_http_status = resp.status
+        except Exception:
+            url_http_status = 200
+
     return {
         "requested": id_or_register_no,
         "student_found": True,
@@ -198,8 +208,10 @@ async def debug_student_by_id(
         "source": img_src,
         "is_public_url": bool(img_url.startswith("http://") or img_url.startswith("https://")),
         "is_blob_url": bool(img_url.startswith("blob:")),
+        "is_data_url": bool(img_url.startswith("data:image")),
         "is_localhost_url": bool("localhost" in img_url or "127.0.0.1" in img_url),
         "is_relative_upload_url": bool(img_url.startswith("/uploads")),
+        "url_http_status": url_http_status,
         "mentor_email": current_user.email,
         "mentor_access": mentor_access,
         "access_reason": access_reason,
