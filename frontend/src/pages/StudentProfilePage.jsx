@@ -383,12 +383,16 @@ export const StudentProfilePage = () => {
                     src={getStudentImageUrl(student)}
                     alt={student?.name || "Student"}
                     className="w-20 h-20 rounded-none object-cover border border-[#D1D5DB] mx-auto"
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                      const fallback = e.target.parentElement?.querySelector('.avatar-profile-fallback');
+                      if (fallback) fallback.style.display = "flex";
+                    }}
                   />
-                ) : (
-                  <div className="w-20 h-20 rounded-none bg-[#F7F7F7] border border-[#D1D5DB] flex items-center justify-center text-[#214C55] mx-auto text-2xl font-black shadow-none">
-                    {(student?.name || "U").charAt(0)}
-                  </div>
-                )}
+                ) : null}
+                <div className={`avatar-profile-fallback w-20 h-20 rounded-none bg-[#F7F7F7] border border-[#D1D5DB] text-[#214C55] mx-auto text-2xl font-black shadow-none items-center justify-center ${getStudentImageUrl(student) ? "hidden" : "flex"}`}>
+                  {(student?.name || "U").charAt(0)}
+                </div>
                 <div>
                   <h2 className="text-lg font-extrabold text-[#214C55] uppercase tracking-wider">{student?.name || "N/A"}</h2>
                   <p className="text-xs text-[#6B7280] font-bold mt-0.5">{student?.register_no || student?.registerNo || "N/A"}</p>

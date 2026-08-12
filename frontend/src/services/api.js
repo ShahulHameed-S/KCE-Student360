@@ -13,7 +13,7 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // Timeout after 10s
+  timeout: 120000, // Timeout after 120s to accommodate Render backend cold starts
 });
 
 // Request interceptor to attach Authorization header

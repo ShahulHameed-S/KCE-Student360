@@ -352,6 +352,9 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "section": student.section,
         "batch": student.batch,
         "cgpa": float(custom_cgpa) if (custom_cgpa is not None and str(custom_cgpa).strip() != "") else (getattr(student, "cgpa", None) or 0.0),
+        "avatar_url": profile_image or "",
+        "profile_image_url": profile_image or "",
+        "image_url": profile_image or "",
         "profile_image": profile_image or "",
         "profileImage": profile_image or "",
     }
@@ -584,6 +587,9 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         },
         "ai_summary": ai_sum_dict,
         "aiSummary": ai_sum_dict,
+        "avatar_url": profile_image or "",
+        "profile_image_url": profile_image or "",
+        "image_url": profile_image or "",
         "profile_image": profile_image or "",
         "profileImage": profile_image or "",
         "cgpa": cgpa_str

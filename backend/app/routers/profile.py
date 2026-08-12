@@ -79,7 +79,12 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
     elif user.role == "mentor":
         extra_details = bio_extra
 
-    img_path = profile.profile_image or ""
+    # Resolve profile image priority: Student.profile_image -> UserProfile.profile_image -> ""
+    img_path = ""
+    if user.student_profile and user.student_profile.profile_image:
+        img_path = user.student_profile.profile_image
+    elif profile.profile_image:
+        img_path = profile.profile_image
 
     return {
         "id": user.id,
@@ -90,6 +95,9 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
         "role": user.role,
         "department": department,
         "location": profile.location or "Coimbatore",
+        "avatar_url": img_path,
+        "profile_image_url": img_path,
+        "image_url": img_path,
         "profile_image": img_path,
         "profileImage": img_path,
         "bio": bio_text,
@@ -271,6 +279,11 @@ async def upload_my_profile_image(
     db.refresh(profile)
 
     return {
+        "success": True,
+        "avatar_url": file_url,
+        "profile_image_url": file_url,
+        "image_url": file_url,
         "profile_image": file_url,
-        "profileImage": file_url
+        "profileImage": file_url,
+        "message": "Profile image updated successfully"
     }

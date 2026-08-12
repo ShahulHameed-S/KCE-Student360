@@ -27,6 +27,9 @@ class ProfileResponse(BaseModel):
     location: Optional[str] = None
     profile_image: Optional[str] = None
     profileImage: Optional[str] = None
+    avatar_url: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    image_url: Optional[str] = None
     bio: Optional[str] = None
     github_url: Optional[str] = None
     githubUrl: Optional[str] = None

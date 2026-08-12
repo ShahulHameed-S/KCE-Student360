@@ -153,21 +153,25 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = (updates) => {
     setUser((prev) => {
+      const imgVal =
+        updates.avatar_url ||
+        updates.profile_image_url ||
+        updates.image_url ||
+        updates.profileImage ||
+        updates.profile_image ||
+        prev?.avatar_url ||
+        prev?.profileImage ||
+        prev?.profile_image ||
+        null;
+
       const merged = {
         ...prev,
         ...updates,
-        profileImage:
-          updates.profileImage ||
-          updates.profile_image ||
-          prev?.profileImage ||
-          prev?.profile_image ||
-          null,
-        profile_image:
-          updates.profile_image ||
-          updates.profileImage ||
-          prev?.profile_image ||
-          prev?.profileImage ||
-          null,
+        avatar_url: imgVal,
+        profile_image_url: imgVal,
+        image_url: imgVal,
+        profileImage: imgVal,
+        profile_image: imgVal,
         profileImageUpdatedAt: updates.profileImageUpdatedAt || Date.now(),
       };
 

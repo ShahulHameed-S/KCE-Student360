@@ -47,7 +47,7 @@ export const Navbar = ({ title }) => {
 
   useEffect(() => {
     setImgError(false);
-  }, [user?.profileImage, user?.profile_image]);
+  }, [user?.avatar_url, user?.profileImage, user?.profile_image, user?.profileImageUpdatedAt]);
 
   const getInitials = (name) => {
     if (!name) return "U";

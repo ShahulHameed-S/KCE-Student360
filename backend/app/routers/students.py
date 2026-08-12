@@ -40,6 +40,16 @@ DEFAULT_SKILLS = [
     "Python", "DSA", "DBMS", "FastAPI", "PostgreSQL"
 ]
 
+def resolve_student_profile_image(student: Student, db: Session):
+    """Resolves profile image priority: Student.profile_image -> UserProfile.profile_image -> ''"""
+    if student.profile_image and student.profile_image.strip():
+        return student.profile_image, "students.profile_image"
+    if student.user_id:
+        user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
+        if user_prof and user_prof.profile_image and user_prof.profile_image.strip():
+            return user_prof.profile_image, "user_profiles.profile_image"
+    return "", "default_fallback"
+
 def serialize_student_flat(student: Student, db: Session) -> dict:
     """Serializes a student into a dictionary containing both flat fields and nested objects for compatibility."""
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
@@ -54,8 +64,12 @@ def serialize_student_flat(student: Student, db: Session) -> dict:
         "Technical": analytics_obj.technical_average if analytics_obj else 0.0
     }
 
+    img_url, img_src = resolve_student_profile_image(student, db)
+
     student_dict = {
         "id": student.id,
+        "user_id": student.user_id,
+        "userId": student.user_id,
         "register_no": student.register_no,
         "registerNo": student.register_no,
         "name": student.name,
@@ -66,8 +80,12 @@ def serialize_student_flat(student: Student, db: Session) -> dict:
         "section": student.section,
         "batch": student.batch,
         "cgpa": student.cgpa,
-        "profile_image": student.profile_image or "",
-        "profileImage": student.profile_image or "",
+        "avatar_url": img_url,
+        "profile_image_url": img_url,
+        "image_url": img_url,
+        "profile_image": img_url,
+        "profileImage": img_url,
+        "avatar_source": img_src,
         "overall_score": analytics_obj.overall_score if analytics_obj else 0.0,
         "overallScore": analytics_obj.overall_score if analytics_obj else 0.0,
         "domain_scores": domain_scores,
@@ -118,7 +136,10 @@ async def debug_student_by_id(
             "requested": id_or_register_no,
             "student_found": False,
             "student_id": None,
+            "user_id": None,
             "register_no": None,
+            "avatar_url": "",
+            "source": "student_not_found",
             "mentor_email": current_user.email,
             "mentor_access": False,
             "access_reason": "student_not_found",
@@ -128,6 +149,8 @@ async def debug_student_by_id(
             "scores_count": 0,
             "analytics_exists": False
         }
+
+    img_url, img_src = resolve_student_profile_image(student, db)
 
     mentor_access = False
     access_reason = "denied"
@@ -158,7 +181,13 @@ async def debug_student_by_id(
         "requested": id_or_register_no,
         "student_found": True,
         "student_id": student.id,
+        "user_id": student.user_id,
         "register_no": student.register_no,
+        "avatar_url": img_url,
+        "profile_image_url": img_url,
+        "image_url": img_url,
+        "profile_image": img_url,
+        "source": img_src,
         "mentor_email": current_user.email,
         "mentor_access": mentor_access,
         "access_reason": access_reason,

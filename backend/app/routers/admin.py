@@ -1153,8 +1153,9 @@ async def admin_assign_all_students_to_mentor(
         )
 
     all_students = db.query(Student).all()
-    real_students = [s for s in all_students if not s.register_no.lower().startswith("22ad")]
-    excluded_demo_students = len(all_students) - len(real_students)
+    demo_students = [s for s in all_students if s.register_no and s.register_no.strip().lower().startswith("22ad")]
+    real_students = [s for s in all_students if not (s.register_no and s.register_no.strip().lower().startswith("22ad"))]
+    excluded_demo_students = len(demo_students)
 
     assigned_count = 0
     already_assigned_count = 0
@@ -1395,6 +1396,7 @@ async def admin_debug_mentor_assignments(
 
     return {
         "mentor_found": True,
+        "mentor_email": mentor_user.email,
         "assigned_count": len(assigned_regs),
         "assigned_register_numbers": assigned_regs
     }

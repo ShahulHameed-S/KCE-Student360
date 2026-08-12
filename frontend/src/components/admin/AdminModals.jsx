@@ -1986,6 +1986,12 @@ export const AssignMentorModal = ({ isOpen, onClose, mentors, onAssign }) => {
             <div className="grid grid-cols-2 gap-2 text-[#111827]">
               <div><span className="font-bold text-green-700">Newly Assigned:</span> {result.assigned ?? 0}</div>
               <div><span className="font-bold text-blue-700">Already Assigned:</span> {result.already_assigned ?? 0}</div>
+              {result.total_real_students !== undefined && (
+                <div><span className="font-bold text-teal-700">Total Real Students:</span> {result.total_real_students}</div>
+              )}
+              {result.excluded_demo_students !== undefined && (
+                <div><span className="font-bold text-purple-700">Excluded Demo Students:</span> {result.excluded_demo_students}</div>
+              )}
             </div>
 
             {result.not_found && result.not_found.length > 0 && (

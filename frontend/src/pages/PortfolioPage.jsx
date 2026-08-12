@@ -458,16 +458,26 @@ export const PortfolioPage = () => {
     } catch (e) {}
   }
 
-  // 3. student.profileImage & 4. student.profile_image
-  const studentProfileImage = portfolio?.profileImage || portfolio?.profile_image || student?.profileImage || student?.profile_image;
+  // 3. student.avatar_url / profileImage & 4. student.profile_image
+  const studentProfileImage =
+    portfolio?.avatar_url ||
+    portfolio?.profile_image_url ||
+    portfolio?.image_url ||
+    portfolio?.profileImage ||
+    portfolio?.profile_image ||
+    student?.avatar_url ||
+    student?.profile_image_url ||
+    student?.image_url ||
+    student?.profileImage ||
+    student?.profile_image;
 
-  // 5. currentUser.profileImage if available
+  // 5. currentUser.avatar_url if available
   const isOwn = user?.role === "student" && (user?.register_no === registerNo || user?.registerNo === registerNo);
-  const currentUserImage = isOwn ? (user?.profileImage || user?.profile_image) : null;
+  const currentUserImage = isOwn ? (user?.avatar_url || user?.profileImage || user?.profile_image) : null;
 
   // Final priority list resolution
   const avatarUrl = getStudentImageUrl({
-    profileImage: studentProfileImage || profileServiceImage || profileServiceImage2 || customProfileImage || currentUserImage,
+    avatar_url: studentProfileImage || profileServiceImage || profileServiceImage2 || customProfileImage || currentUserImage,
     student: portfolio?.student,
     registerNo: registerNo,
     role: isOwn ? "student" : null

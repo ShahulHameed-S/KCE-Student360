@@ -6,11 +6,13 @@ export const resolveImageUrl = (url, timestamp = null) => {
   const cleanUrl = url.trim();
   if (!cleanUrl) return null;
 
+  const ts = timestamp || Date.now();
+
   if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-    if (cleanUrl.includes("/uploads/") && timestamp) {
+    if (cleanUrl.includes("/uploads/")) {
       return cleanUrl.includes("?")
-        ? `${cleanUrl}&t=${timestamp}`
-        : `${cleanUrl}?t=${timestamp}`;
+        ? `${cleanUrl}&v=${ts}`
+        : `${cleanUrl}?v=${ts}`;
     }
     return cleanUrl;
   }
@@ -29,17 +31,18 @@ export const resolveImageUrl = (url, timestamp = null) => {
 
   if (cleanUrl.startsWith("/uploads/")) {
     const resolved = `${API_BASE_URL}${cleanUrl}`;
-    return timestamp ? `${resolved}?t=${timestamp}` : resolved;
+    return `${resolved}${resolved.includes("?") ? "&" : "?"}v=${ts}`;
   }
 
   if (cleanUrl.startsWith("uploads/")) {
     const resolved = `${API_BASE_URL}/${cleanUrl}`;
-    return timestamp ? `${resolved}?t=${timestamp}` : resolved;
+    return `${resolved}${resolved.includes("?") ? "&" : "?"}v=${ts}`;
   }
 
-  return cleanUrl.startsWith("/")
+  const resolved = cleanUrl.startsWith("/")
     ? `${API_BASE_URL}${cleanUrl}`
     : `${API_BASE_URL}/${cleanUrl}`;
+  return `${resolved}${resolved.includes("?") ? "&" : "?"}v=${ts}`;
 };
 
 export const getStudentImageUrl = (studentOrUser) => {
@@ -48,21 +51,32 @@ export const getStudentImageUrl = (studentOrUser) => {
   const timestamp = studentOrUser.profileImageUpdatedAt || studentOrUser.updatedAt || studentOrUser.updated_at || null;
 
   const rawUrl =
-    studentOrUser.profileImage ||
-    studentOrUser.profile_image ||
-    studentOrUser.userProfile?.profileImage ||
-    studentOrUser.userProfile?.profile_image ||
-    studentOrUser.student?.profileImage ||
-    studentOrUser.student?.profile_image ||
-    studentOrUser.user?.profileImage ||
-    studentOrUser.user?.profile_image ||
-    studentOrUser.avatarUrl ||
     studentOrUser.avatar_url ||
-    studentOrUser.imageUrl ||
+    studentOrUser.avatarUrl ||
+    studentOrUser.profile_image_url ||
+    studentOrUser.profileImageUrl ||
+    studentOrUser.profile_image ||
+    studentOrUser.profileImage ||
     studentOrUser.image_url ||
+    studentOrUser.imageUrl ||
     studentOrUser.avatar ||
     studentOrUser.image ||
     studentOrUser.photo ||
+    studentOrUser.userProfile?.avatar_url ||
+    studentOrUser.userProfile?.avatarUrl ||
+    studentOrUser.userProfile?.profile_image_url ||
+    studentOrUser.userProfile?.profile_image ||
+    studentOrUser.userProfile?.profileImage ||
+    studentOrUser.student?.avatar_url ||
+    studentOrUser.student?.avatarUrl ||
+    studentOrUser.student?.profile_image_url ||
+    studentOrUser.student?.profile_image ||
+    studentOrUser.student?.profileImage ||
+    studentOrUser.user?.avatar_url ||
+    studentOrUser.user?.avatarUrl ||
+    studentOrUser.user?.profile_image_url ||
+    studentOrUser.user?.profile_image ||
+    studentOrUser.user?.profileImage ||
     null;
 
   return resolveImageUrl(rawUrl, timestamp);

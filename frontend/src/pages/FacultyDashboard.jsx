@@ -279,6 +279,12 @@ const AssignMentorInlineForm = ({ mentors, onAssign }) => {
           <div className="grid grid-cols-2 gap-2 text-[#111827]">
             <div><span className="font-bold text-green-700">Newly Assigned:</span> {result.assigned ?? 0}</div>
             <div><span className="font-bold text-blue-700">Already Assigned:</span> {result.already_assigned ?? 0}</div>
+            {result.total_real_students !== undefined && (
+              <div><span className="font-bold text-teal-700">Total Real Students:</span> {result.total_real_students}</div>
+            )}
+            {result.excluded_demo_students !== undefined && (
+              <div><span className="font-bold text-purple-700">Excluded Demo Students:</span> {result.excluded_demo_students}</div>
+            )}
           </div>
 
           {result.not_found && result.not_found.length > 0 && (
@@ -336,11 +342,15 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
       localStorage.setItem(`student360_about_profile_${registerNo}`, JSON.stringify(aboutData));
 
       if (updateUser) {
+        const newImg = updatedProfile.avatar_url || updatedProfile.profile_image_url || updatedProfile.profileImage || updatedProfile.profile_image;
         updateUser({
           name: updatedProfile.fullName || updatedProfile.name,
           email: updatedProfile.email,
-          profileImage: updatedProfile.profileImage || updatedProfile.profile_image,
-          profile_image: updatedProfile.profile_image || updatedProfile.profileImage,
+          avatar_url: newImg,
+          profile_image_url: newImg,
+          image_url: newImg,
+          profileImage: newImg,
+          profile_image: newImg,
           profileImageUpdatedAt: Date.now()
         });
       }
@@ -373,11 +383,15 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
       }
 
       if (updateUser) {
+        const newImg = updatedProfile.avatar_url || updatedProfile.profile_image_url || updatedProfile.profileImage || updatedProfile.profile_image;
         updateUser({
           name: updatedProfile.fullName || updatedProfile.name,
           email: updatedProfile.email,
-          profileImage: updatedProfile.profileImage || updatedProfile.profile_image,
-          profile_image: updatedProfile.profile_image || updatedProfile.profileImage,
+          avatar_url: newImg,
+          profile_image_url: newImg,
+          image_url: newImg,
+          profileImage: newImg,
+          profile_image: newImg,
           profileImageUpdatedAt: Date.now()
         });
       }

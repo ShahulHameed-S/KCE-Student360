@@ -249,9 +249,18 @@ async def get_mentor_students(
 
     students = resolve_mentor_students(db, current_user)
 
+    from app.models.profile import UserProfile
+
     res_list = []
     for s in students:
         analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
+        
+        img_url = s.profile_image or ""
+        if not img_url and s.user_id:
+            user_prof = db.query(UserProfile).filter(UserProfile.user_id == s.user_id).first()
+            if user_prof and user_prof.profile_image:
+                img_url = user_prof.profile_image
+
         res_list.append({
             "id": s.id,
             "user_id": s.user_id,
@@ -266,8 +275,11 @@ async def get_mentor_students(
             "section": s.section,
             "batch": s.batch,
             "cgpa": s.cgpa,
-            "profile_image": s.profile_image or "",
-            "profileImage": s.profile_image or "",
+            "avatar_url": img_url,
+            "profile_image_url": img_url,
+            "image_url": img_url,
+            "profile_image": img_url,
+            "profileImage": img_url,
             "created_at": s.created_at.isoformat() if s.created_at else "",
             "overall_score": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
             "overallScore": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,

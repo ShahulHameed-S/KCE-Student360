@@ -8,6 +8,7 @@ import ScoreBadge from "../components/common/ScoreBadge";
 import DomainBadge from "../components/common/DomainBadge";
 import LoadingSpinner from "../components/common/LoadingSpinner";
 import { ExternalLink, UserSquare2 } from "lucide-react";
+import { getStudentImageUrl } from "../utils/imageUtils";
 
 export const StudentListPage = () => {
   const { user } = useAuth();
@@ -72,7 +73,34 @@ export const StudentListPage = () => {
       label: "Name",
       sortable: true,
       className: "font-bold text-[#214C55]",
-      render: (row) => row.name || row.full_name || "Student"
+      render: (row) => {
+        const avatarUrl = getStudentImageUrl(row);
+        const nameText = row.name || row.full_name || "Student";
+        return (
+          <div className="flex items-center space-x-2.5">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={nameText}
+                className="w-7 h-7 rounded-full object-cover border border-[#D1D5DB]"
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  const fallback = e.target.parentElement?.querySelector('.avatar-fallback');
+                  if (fallback) fallback.style.display = "flex";
+                }}
+              />
+            ) : null}
+            <div
+              className={`avatar-fallback w-7 h-7 rounded-full bg-[#214C55] text-white font-black text-[10px] uppercase items-center justify-center ${
+                avatarUrl ? "hidden" : "flex"
+              }`}
+            >
+              {nameText.charAt(0)}
+            </div>
+            <span>{nameText}</span>
+          </div>
+        );
+      }
     },
     {
       key: "department",

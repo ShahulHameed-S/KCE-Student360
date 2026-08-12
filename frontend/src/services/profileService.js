@@ -25,7 +25,10 @@ export const profileService = {
         role: res.role || role,
         department: res.department || "",
         location: res.location || "Coimbatore",
-        profileImage: res.profileImage || res.profile_image || "",
+        avatar_url: res.avatar_url || res.profile_image_url || res.image_url || res.profileImage || res.profile_image || "",
+        profile_image_url: res.avatar_url || res.profile_image_url || res.image_url || res.profileImage || res.profile_image || "",
+        profileImage: res.avatar_url || res.profileImage || res.profile_image || "",
+        profile_image: res.avatar_url || res.profile_image || res.profileImage || "",
         profileImageName: "",
         linkedinUrl: res.linkedinUrl || res.linkedin_url || "",
         githubUrl: res.githubUrl || res.github_url || "",
@@ -56,7 +59,9 @@ export const profileService = {
           role: role,
           department: "AI & DS",
           location: "Coimbatore, Tamil Nadu",
+          avatar_url: "",
           profileImage: "",
+          profile_image: "",
           profileImageName: "",
           linkedinUrl: "",
           githubUrl: "",
@@ -76,7 +81,7 @@ export const profileService = {
   saveProfile: async (role, userId, data) => {
     try {
       // 1. If profileImage is a Base64 string, upload it first
-      let profileImageUrl = data.profileImage;
+      let profileImageUrl = data.profileImage || data.avatar_url;
       if (data.profileImage && data.profileImage.startsWith("data:image")) {
         try {
           const blob = dataURLtoBlob(data.profileImage);
@@ -86,17 +91,24 @@ export const profileService = {
           const imgResponse = await api.post("/users/me/profile-image", formData, {
             headers: { "Content-Type": "multipart/form-data" }
           });
-          profileImageUrl = imgResponse.data.profileImage || imgResponse.data.profile_image;
+          profileImageUrl = imgResponse.data.avatar_url || imgResponse.data.profileImage || imgResponse.data.profile_image;
           
           // Sync localStorage current user image details
-          const savedUserRaw = localStorage.getItem("currentUser") || localStorage.getItem("user");
-          if (savedUserRaw) {
-            const savedUser = JSON.parse(savedUserRaw);
-            savedUser.profileImage = profileImageUrl;
-            savedUser.profile_image = profileImageUrl;
-            localStorage.setItem("currentUser", JSON.stringify(savedUser));
-            localStorage.setItem("user", JSON.stringify(savedUser));
-          }
+          ["currentUser", "user"].forEach((k) => {
+            const savedUserRaw = localStorage.getItem(k);
+            if (savedUserRaw) {
+              try {
+                const savedUser = JSON.parse(savedUserRaw);
+                savedUser.avatar_url = profileImageUrl;
+                savedUser.profile_image_url = profileImageUrl;
+                savedUser.image_url = profileImageUrl;
+                savedUser.profileImage = profileImageUrl;
+                savedUser.profile_image = profileImageUrl;
+                savedUser.profileImageUpdatedAt = Date.now();
+                localStorage.setItem(k, JSON.stringify(savedUser));
+              } catch (e) {}
+            }
+          });
         } catch (e) {
           console.error("Failed to upload profile image to backend:", e);
         }
@@ -123,6 +135,7 @@ export const profileService = {
       const res = response.data;
       
       const key = `student360_profile_${role}_${userId}`;
+      const finalImg = profileImageUrl || res.avatar_url || res.profileImage || res.profile_image || "";
       const savedLocal = {
         ...data,
         fullName: res.fullName || res.full_name || data.fullName,
@@ -133,7 +146,11 @@ export const profileService = {
         bio: res.bio || data.bio,
         githubUrl: res.githubUrl || res.github_url || "",
         linkedinUrl: res.linkedinUrl || res.linkedin_url || "",
-        profileImage: profileImageUrl || res.profileImage || res.profile_image || "",
+        avatar_url: finalImg,
+        profile_image_url: finalImg,
+        image_url: finalImg,
+        profileImage: finalImg,
+        profile_image: finalImg,
         extra: res.extra || data.extra || {}
       };
       
