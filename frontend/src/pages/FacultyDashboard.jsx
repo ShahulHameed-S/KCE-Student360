@@ -317,16 +317,36 @@ const AssignMentorInlineForm = ({ mentors, onAssign }) => {
 
 const MyProfileSection = ({ profileData, setProfileData, message, setMessage, user, updateUser }) => {
   console.log("MY PROFILE LOAD RESPONSE", profileData);
-  if (!profileData) return <LoadingSpinner size="sm" text="Resolving account attributes..." />;
+
+  const activeProfile = profileData || {
+    fullName: user?.name || user?.fullName || "User",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    role: user?.role || "student",
+    department: user?.department || "AI & DS",
+    location: "Coimbatore, Tamil Nadu",
+    avatar_url: user?.avatar_url || user?.profile_image || "",
+    profile_image_url: user?.avatar_url || user?.profile_image || "",
+    profileImage: user?.avatar_url || user?.profile_image || "",
+    profile_image: user?.avatar_url || user?.profile_image || "",
+    bio: "",
+    linkedinUrl: "",
+    githubUrl: "",
+    extra: {
+      registerNo: user?.register_no || user?.registerNo || "",
+      year: user?.year || "3",
+      section: user?.section || "A"
+    }
+  };
 
   const resolvedProfileImg = getStudentImageUrl({
-    ...profileData,
-    registerNo: user?.register_no || user?.registerNo || profileData?.extra?.registerNo,
+    ...activeProfile,
+    registerNo: user?.register_no || user?.registerNo || activeProfile?.extra?.registerNo,
     role: user?.role
   });
 
   const [extPortfolioUrl, setExtPortfolioUrl] = useState(
-    profileData.external_portfolio_url || profileData.externalPortfolioUrl || ""
+    activeProfile.external_portfolio_url || activeProfile.externalPortfolioUrl || ""
   );
   const [urlMessage, setUrlMessage] = useState("");
   const [urlSuccess, setUrlSuccess] = useState(false);

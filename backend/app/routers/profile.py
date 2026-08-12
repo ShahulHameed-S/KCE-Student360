@@ -21,6 +21,16 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
     
     bio_text = profile.bio or ""
     bio_extra = {}
+    
+    # Image resolution fallback
+    img_path = getattr(profile, "profile_image", None) or ""
+    if not img_path and user.role == "student":
+        try:
+            s_obj = user.student_profile or db.query(Student).filter(Student.user_id == user.id).first()
+            if s_obj and getattr(s_obj, "profile_image", None):
+                img_path = s_obj.profile_image
+        except Exception:
+            pass
     if bio_text.startswith("{") and bio_text.endswith("}"):
         try:
             bio_data = json.loads(bio_text)
