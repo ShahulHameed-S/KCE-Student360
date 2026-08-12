@@ -261,6 +261,19 @@ async def get_mentor_students(
             if user_prof and user_prof.profile_image:
                 img_url = user_prof.profile_image
 
+        ext_url = ""
+        cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
+        if cust and cust.section_visibility_json:
+            try:
+                parsed = json.loads(cust.section_visibility_json)
+                if isinstance(parsed, dict):
+                    ext_url = parsed.get("external_portfolio_url", "")
+            except Exception:
+                pass
+
+        from app.utils.url_utils import build_portfolio_urls
+        port_urls = build_portfolio_urls(s.register_no, ext_url)
+
         res_list.append({
             "id": s.id,
             "user_id": s.user_id,
@@ -280,6 +293,9 @@ async def get_mentor_students(
             "image_url": img_url,
             "profile_image": img_url,
             "profileImage": img_url,
+            "external_portfolio_url": port_urls["external_portfolio_url"],
+            "default_portfolio_url": port_urls["default_portfolio_url"],
+            "student360_portfolio_url": port_urls["student360_portfolio_url"],
             "created_at": s.created_at.isoformat() if s.created_at else "",
             "overall_score": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
             "overallScore": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,

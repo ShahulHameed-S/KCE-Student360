@@ -2,6 +2,27 @@ import api from "./api";
 
 const CUSTOMIZATION_KEY_PREFIX = "student360_portfolio_customization_";
 
+export const validatePortfolioUrl = (url) => {
+  if (!url || typeof url !== "string") return { valid: true, cleanUrl: "" };
+  const clean = url.trim();
+  if (!clean) return { valid: true, cleanUrl: "" };
+  
+  const lower = clean.toLowerCase();
+  const forbidden = ["javascript:", "data:", "file:", "ftp:", "localhost", "127.0.0.1"];
+  for (let f of forbidden) {
+    if (lower.includes(f)) {
+      return { valid: false, error: "Unsafe or local URL detected. Please enter a valid public URL starting with https://" };
+    }
+  }
+  
+  if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+    return { valid: false, error: "Please enter a valid portfolio URL starting with https://" };
+  }
+  
+  const isHttpWarning = lower.startsWith("http://");
+  return { valid: true, cleanUrl: clean, warning: isHttpWarning ? "HTTPS links are recommended." : null };
+};
+
 export const portfolioCustomizationService = {
   getPortfolioCustomization: async (registerNo) => {
     try {
@@ -25,6 +46,9 @@ export const portfolioCustomizationService = {
         skills: data.skills || [],
         github_url: data.github_url || data.githubUrl || "",
         linkedin_url: data.linkedin_url || data.linkedinUrl || "",
+        external_portfolio_url: data.external_portfolio_url || data.externalPortfolioUrl || "",
+        default_portfolio_url: data.default_portfolio_url || data.student360_portfolio_url || `https://kce-student360.vercel.app/portfolio/${registerNo}`,
+        student360_portfolio_url: data.student360_portfolio_url || data.default_portfolio_url || `https://kce-student360.vercel.app/portfolio/${registerNo}`,
         email: data.email || "",
         phone: data.phone || "",
         location: data.location || "",
@@ -54,6 +78,9 @@ export const portfolioCustomizationService = {
         skills: [],
         github_url: "",
         linkedin_url: "",
+        external_portfolio_url: "",
+        default_portfolio_url: `https://kce-student360.vercel.app/portfolio/${registerNo}`,
+        student360_portfolio_url: `https://kce-student360.vercel.app/portfolio/${registerNo}`,
         email: "",
         phone: "",
         location: "",
@@ -80,6 +107,7 @@ export const portfolioCustomizationService = {
         skills: Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(Boolean) : []),
         github_url: data.github_url,
         linkedin_url: data.linkedin_url,
+        external_portfolio_url: data.external_portfolio_url !== undefined ? data.external_portfolio_url : data.externalPortfolioUrl,
         email: data.email,
         phone: data.phone,
         location: data.location,

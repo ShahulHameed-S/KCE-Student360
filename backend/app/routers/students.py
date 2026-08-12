@@ -66,6 +66,19 @@ def serialize_student_flat(student: Student, db: Session) -> dict:
 
     img_url, img_src = resolve_student_profile_image(student, db)
 
+    ext_url = ""
+    cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
+    if cust and cust.section_visibility_json:
+        try:
+            parsed = json.loads(cust.section_visibility_json)
+            if isinstance(parsed, dict):
+                ext_url = parsed.get("external_portfolio_url", "")
+        except Exception:
+            pass
+
+    from app.utils.url_utils import build_portfolio_urls
+    port_urls = build_portfolio_urls(student.register_no, ext_url)
+
     student_dict = {
         "id": student.id,
         "user_id": student.user_id,
@@ -86,6 +99,9 @@ def serialize_student_flat(student: Student, db: Session) -> dict:
         "profile_image": img_url,
         "profileImage": img_url,
         "avatar_source": img_src,
+        "external_portfolio_url": port_urls["external_portfolio_url"],
+        "default_portfolio_url": port_urls["default_portfolio_url"],
+        "student360_portfolio_url": port_urls["student360_portfolio_url"],
         "overall_score": analytics_obj.overall_score if analytics_obj else 0.0,
         "overallScore": analytics_obj.overall_score if analytics_obj else 0.0,
         "domain_scores": domain_scores,

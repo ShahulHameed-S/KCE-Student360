@@ -339,6 +339,11 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         if "artist" in music_data and music_data["artist"]:
             music_config["artist"] = str(music_data["artist"])
 
+    # Portfolio URLs resolution
+    ext_portfolio_url = custom_data.get("external_portfolio_url") or links_data.get("external_portfolio_url") or ""
+    from app.utils.url_utils import build_portfolio_urls
+    port_urls = build_portfolio_urls(student.register_no, ext_portfolio_url)
+
     # 3. Format Student section
     student_dict = {
         "id": student.id,
@@ -357,6 +362,9 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "image_url": profile_image or "",
         "profile_image": profile_image or "",
         "profileImage": profile_image or "",
+        "external_portfolio_url": port_urls["external_portfolio_url"],
+        "default_portfolio_url": port_urls["default_portfolio_url"],
+        "student360_portfolio_url": port_urls["student360_portfolio_url"]
     }
 
     # 4. Format Resume validation
@@ -415,6 +423,9 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "githubUrl": github_url,
         "linkedin_url": linkedin_url,
         "linkedinUrl": linkedin_url,
+        "external_portfolio_url": port_urls["external_portfolio_url"],
+        "default_portfolio_url": port_urls["default_portfolio_url"],
+        "student360_portfolio_url": port_urls["student360_portfolio_url"],
         "email": email,
         "phone": phone,
         "location": location,
@@ -441,7 +452,8 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
             "leetcode": leetcode_url,
             "hackerrank": hackerrank_url,
             "website": website_url,
-            "resume": resume_url_custom
+            "resume": resume_url_custom,
+            "external_portfolio_url": port_urls["external_portfolio_url"]
         },
         "sections": sections_config,
         "music": music_config,
@@ -568,6 +580,9 @@ def get_public_portfolio(db: Session, register_no: str) -> dict:
         "skills": skills,
         "github_url": github_url,
         "linkedin_url": linkedin_url,
+        "external_portfolio_url": port_urls["external_portfolio_url"],
+        "default_portfolio_url": port_urls["default_portfolio_url"],
+        "student360_portfolio_url": port_urls["student360_portfolio_url"],
         "resume_url": resume_dict.get("file_path") if resume_dict else "",
         "has_resume": bool(resume_dict and resume_dict.get("file_path")),
         "resume": resume_dict,

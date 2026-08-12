@@ -31,13 +31,27 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
     analytics_records = db.query(StudentAnalytics).filter(StudentAnalytics.student_id.in_(target_student_ids)).all()
     analytics_map = {a.student_id: a for a in analytics_records}
 
-    # 3. Batch query UserProfile for profile images
+    # 3. Batch query UserProfile for profile images & PortfolioCustomization for external links
     user_ids = [s.user_id for s in target_students if s.user_id]
     profile_image_map = {}
     if user_ids:
         from app.models.profile import UserProfile
         profiles = db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all()
         profile_image_map = {p.user_id: p.profile_image for p in profiles if p.profile_image}
+
+    from app.models.portfolio import PortfolioCustomization
+    from app.utils.url_utils import build_portfolio_urls
+    import json
+    cust_records = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id.in_(target_student_ids)).all()
+    custom_map = {}
+    for c in cust_records:
+        if c.section_visibility_json:
+            try:
+                parsed = json.loads(c.section_visibility_json)
+                if isinstance(parsed, dict) and parsed.get("external_portfolio_url"):
+                    custom_map[c.student_id] = parsed["external_portfolio_url"]
+            except Exception:
+                pass
 
     norm_cat = normalize_domain(domain)
 
@@ -93,6 +107,8 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                 has_scores = True
 
         profile_image = student.profile_image or profile_image_map.get(student.user_id, "")
+        ext_url = custom_map.get(student.id, "")
+        port_urls = build_portfolio_urls(student.register_no, ext_url)
 
         items.append({
             "target_score": float(domain_score) if (has_scores and domain_score is not None) else -1.0,
@@ -122,7 +138,11 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                 "weakest_domain": weakest,
                 "weakestDomain": weakest,
                 "profile_image": profile_image,
-                "profileImage": profile_image
+                "profileImage": profile_image,
+                "avatar_url": profile_image,
+                "external_portfolio_url": port_urls["external_portfolio_url"],
+                "default_portfolio_url": port_urls["default_portfolio_url"],
+                "student360_portfolio_url": port_urls["student360_portfolio_url"]
             }
         })
 

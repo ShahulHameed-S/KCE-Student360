@@ -453,13 +453,26 @@ export const LeaderboardPage = () => {
                               <UserSquare2 size={12} />
                               <span>Profile</span>
                             </Link>
-                            <Link
-                              to={`/portfolio/${student.register_no || student.registerNo}`}
-                              className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
-                            >
-                              <span>Portfolio</span>
-                              <ExternalLink size={12} />
-                            </Link>
+                            {student.external_portfolio_url ? (
+                              <a
+                                href={student.external_portfolio_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Open Student's External Personal Portfolio"
+                                className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
+                              >
+                                <span>Portfolio</span>
+                                <ExternalLink size={12} />
+                              </a>
+                            ) : (
+                              <Link
+                                to={`/portfolio/${student.register_no || student.registerNo}`}
+                                className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
+                              >
+                                <span>Portfolio</span>
+                                <ExternalLink size={12} />
+                              </Link>
+                            )}
                           </div>
                         </td>
                       </tr>

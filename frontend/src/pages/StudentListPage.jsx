@@ -164,24 +164,41 @@ export const StudentListPage = () => {
       key: "actions",
       label: "Actions",
       className: "text-center",
-      render: (row) => (
-        <div className="flex items-center justify-center space-x-2">
-          <Link
-            to={`/students/${row.register_no || row.registerNo || row.id}`}
-            className="text-xs font-bold text-[#214C55] hover:text-white bg-[#F7F7F7] hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
-          >
-            <UserSquare2 size={13} />
-            <span>Profile</span>
-          </Link>
-          <Link
-            to={`/portfolio/${row.register_no || row.registerNo}`}
-            className="text-xs font-bold text-[#C76F2B] hover:text-white bg-[#F7F7F7] hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
-          >
-            <span>Portfolio</span>
-            <ExternalLink size={13} />
-          </Link>
-        </div>
-      )
+      render: (row) => {
+        const regNo = row.register_no || row.registerNo;
+        const extUrl = row.external_portfolio_url;
+        return (
+          <div className="flex items-center justify-center space-x-2">
+            <Link
+              to={`/students/${regNo || row.id}`}
+              className="text-xs font-bold text-[#214C55] hover:text-white bg-[#F7F7F7] hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
+            >
+              <UserSquare2 size={13} />
+              <span>Profile</span>
+            </Link>
+            {extUrl ? (
+              <a
+                href={extUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open Student's External Personal Portfolio"
+                className="text-xs font-bold text-[#C76F2B] hover:text-white bg-[#F7F7F7] hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
+              >
+                <span>Portfolio</span>
+                <ExternalLink size={13} />
+              </a>
+            ) : (
+              <Link
+                to={`/portfolio/${regNo}`}
+                className="text-xs font-bold text-[#C76F2B] hover:text-white bg-[#F7F7F7] hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
+              >
+                <span>Portfolio</span>
+                <ExternalLink size={13} />
+              </Link>
+            )}
+          </div>
+        );
+      }
     }
   ];
 

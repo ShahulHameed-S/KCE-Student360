@@ -12,6 +12,7 @@ class PortfolioCustomizationSchema(BaseModel):
     skills: List[str] = Field(default_factory=list)
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+    external_portfolio_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     location: Optional[str] = None
@@ -29,6 +30,7 @@ class PortfolioCustomizationUpdate(BaseModel):
     skills: Optional[List[str]] = None
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
+    external_portfolio_url: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     location: Optional[str] = None

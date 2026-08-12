@@ -79,12 +79,22 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
     elif user.role == "mentor":
         extra_details = bio_extra
 
-    # Resolve profile image priority: Student.profile_image -> UserProfile.profile_image -> ""
-    img_path = ""
-    if user.student_profile and user.student_profile.profile_image:
-        img_path = user.student_profile.profile_image
-    elif profile.profile_image:
-        img_path = profile.profile_image
+    ext_url = ""
+    reg_no = user.username
+    if user.role == "student" and user.student_profile:
+        reg_no = user.student_profile.register_no
+        from app.models.portfolio import PortfolioCustomization
+        cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == user.student_profile.id).first()
+        if cust and cust.section_visibility_json:
+            try:
+                parsed = json.loads(cust.section_visibility_json)
+                if isinstance(parsed, dict):
+                    ext_url = parsed.get("external_portfolio_url", "")
+            except Exception:
+                pass
+
+    from app.utils.url_utils import build_portfolio_urls
+    port_urls = build_portfolio_urls(reg_no, ext_url)
 
     return {
         "id": user.id,
@@ -100,6 +110,9 @@ def serialize_profile(user: User, profile: UserProfile, db: Session) -> dict:
         "image_url": img_path,
         "profile_image": img_path,
         "profileImage": img_path,
+        "external_portfolio_url": port_urls["external_portfolio_url"],
+        "default_portfolio_url": port_urls["default_portfolio_url"],
+        "student360_portfolio_url": port_urls["student360_portfolio_url"],
         "bio": bio_text,
         "github_url": github_url,
         "githubUrl": github_url,

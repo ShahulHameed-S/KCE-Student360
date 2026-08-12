@@ -32,8 +32,12 @@ import {
   Edit2,
   Trash2,
   User,
-  FileText
+  FileText,
+  Copy,
+  Check,
+  Save
 } from "lucide-react";
+import { portfolioCustomizationService, validatePortfolioUrl } from "../services/portfolioCustomizationService";
 
 import { mockUsers } from "../data/mockUsers";
 import { mockStudents } from "../data/mockStudents";
@@ -42,7 +46,6 @@ import { mockPerformance } from "../data/mockPerformance";
 import { resolveImageUrl, getStudentImageUrl, getResumeUrl } from "../utils/imageUtils";
 
 import { studentSubmissionService } from "../services/studentSubmissionService";
-import { portfolioCustomizationService } from "../services/portfolioCustomizationService";
 import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
@@ -321,6 +324,52 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
     registerNo: user?.register_no || user?.registerNo || profileData?.extra?.registerNo,
     role: user?.role
   });
+
+  const [extPortfolioUrl, setExtPortfolioUrl] = useState(
+    profileData.external_portfolio_url || profileData.externalPortfolioUrl || ""
+  );
+  const [urlMessage, setUrlMessage] = useState("");
+  const [urlSuccess, setUrlSuccess] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const regNo = user?.username || profileData?.extra?.registerNo || user?.register_no || user?.registerNo || "717824I354";
+  const defaultShareableUrl = profileData.default_portfolio_url || profileData.student360_portfolio_url || `https://kce-student360.vercel.app/portfolio/${regNo}`;
+
+  const handleSaveExternalUrl = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setUrlMessage("");
+    setUrlSuccess(false);
+
+    const validation = validatePortfolioUrl(extPortfolioUrl);
+    if (!validation.valid) {
+      setUrlMessage(validation.error);
+      return;
+    }
+
+    try {
+      const res = await portfolioCustomizationService.savePortfolioCustomization(regNo, {
+        ...profileData,
+        external_portfolio_url: validation.cleanUrl
+      });
+      setProfileData(prev => ({
+        ...prev,
+        external_portfolio_url: validation.cleanUrl,
+        externalPortfolioUrl: validation.cleanUrl
+      }));
+      setUrlSuccess(true);
+      setUrlMessage(res.message || "External portfolio link saved successfully.");
+      setTimeout(() => setUrlMessage(""), 4000);
+    } catch (err) {
+      console.error(err);
+      setUrlMessage(err.response?.data?.detail || "Failed to save external portfolio link.");
+    }
+  };
+
+  const handleCopyDefaultLink = () => {
+    navigator.clipboard.writeText(defaultShareableUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
 
   const [aboutMessage, setAboutMessage] = useState("");
 
@@ -646,6 +695,71 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
                     onChange={(e) => setProfileData({ ...profileData, linkedinUrl: e.target.value })}
                     className="w-full mt-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white rounded-none"
                   />
+                </div>
+
+                {/* External Portfolio Link & Shareable Default Student360 Link */}
+                <div className="sm:col-span-2 bg-[#F9FAFB] p-4 border border-[#D1D5DB] space-y-3 mt-2">
+                  <div className="flex items-center justify-between border-b border-[#E5E5E5] pb-2">
+                    <h4 className="text-xs font-black uppercase text-[#214C55]">External Portfolio Website Link</h4>
+                    <span className="text-[10px] text-[#6B7280] font-semibold">Optional</span>
+                  </div>
+
+                  <p className="text-[11px] text-[#6B7280] font-medium">
+                    If you already have your own portfolio website, GitHub portfolio, Notion portfolio, or LinkedIn website, paste the URL below. Mentors and placement companies will open this link.
+                  </p>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://your-portfolio.com"
+                      value={extPortfolioUrl}
+                      onChange={(e) => setExtPortfolioUrl(e.target.value)}
+                      className="flex-1 border border-[#D1D5DB] p-2 text-xs focus:outline-[#C76F2B] bg-white rounded-none font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveExternalUrl}
+                      className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider transition-colors rounded-none shadow-none flex items-center justify-center space-x-1 whitespace-nowrap"
+                    >
+                      <Save size={13} />
+                      <span>Save Link</span>
+                    </button>
+                  </div>
+
+                  {urlMessage && (
+                    <div className={`p-2 text-xs font-bold border ${urlSuccess ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-700"}`}>
+                      {urlMessage}
+                    </div>
+                  )}
+
+                  {/* Shareable Default Student360 Portfolio Link */}
+                  <div className="pt-2 border-t border-[#E5E5E5] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-[#214C55]">Verified Student360 Portfolio Link</span>
+                      <span className="text-[9px] bg-teal-50 border border-teal-200 text-[#214C55] px-2 py-0.5 font-bold uppercase">Permanent</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-white border border-[#D1D5DB] p-2 text-xs">
+                      <span className="flex-1 font-mono text-[11px] text-[#214C55] truncate select-all">{defaultShareableUrl}</span>
+                      <button
+                        type="button"
+                        onClick={handleCopyDefaultLink}
+                        className="px-3 py-1 bg-[#214C55] hover:bg-[#163941] text-white text-[10px] font-bold uppercase tracking-wider transition-all rounded-none flex items-center space-x-1 flex-shrink-0"
+                      >
+                        {copiedLink ? <Check size={12} /> : <Copy size={12} />}
+                        <span>{copiedLink ? "Copied!" : "Copy Link"}</span>
+                      </button>
+                      <a
+                        href={`/portfolio/${regNo}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all rounded-none flex items-center space-x-1 flex-shrink-0"
+                      >
+                        <span>View</span>
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </>
             )}

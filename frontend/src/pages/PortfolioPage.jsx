@@ -34,7 +34,9 @@ import {
   ChevronRight,
   User,
   Database,
-  Zap
+  Zap,
+  Copy,
+  Check
 } from "lucide-react";
 
 import { resolveImageUrl, getStudentImageUrl, getResumeUrl } from "../utils/imageUtils";
@@ -85,6 +87,14 @@ export const PortfolioPage = () => {
   const [recruiterMode, setRecruiterMode] = useState(false);
   const [showAllPerformance, setShowAllPerformance] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyStudent360Link = () => {
+    const link = portfolio?.default_portfolio_url || portfolio?.student360_portfolio_url || `https://kce-student360.vercel.app/portfolio/${registerNo}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
 
   useEffect(() => {
     setImageError(false);
@@ -624,10 +634,35 @@ export const PortfolioPage = () => {
           </span>
         </div>
 
-        {/* Dynamic Verification Badge */}
-        <div className="flex items-center space-x-1.5 bg-[#1C2C1D]/60 text-emerald-400 px-3.5 py-1.5 rounded-full text-[9px] font-black border border-emerald-900/40 uppercase tracking-widest">
-          <ShieldCheck size={12} className="text-emerald-400" />
-          <span>Verified Student</span>
+        {/* Actions: External Link & Copy Student360 Link */}
+        <div className="flex items-center space-x-2">
+          {portfolio?.external_portfolio_url && (
+            <a
+              href={portfolio.external_portfolio_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Visit Student's External Personal Portfolio Website"
+              className="hidden sm:inline-flex items-center space-x-1.5 bg-[#A855F7]/10 hover:bg-[#A855F7]/20 text-[#A855F7] px-3 py-1.5 rounded-full text-[10px] font-black border border-[#A855F7]/30 transition-all"
+            >
+              <span>Personal Website</span>
+              <ExternalLink size={12} />
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={handleCopyStudent360Link}
+            title="Copy Permanent Shareable Student360 Link"
+            className="inline-flex items-center space-x-1 bg-[#111114] hover:bg-[#18181D] text-slate-300 hover:text-white px-3 py-1.5 rounded-full text-[10px] font-black border border-[#2E2E33] transition-all cursor-pointer"
+          >
+            {copiedLink ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+            <span>{copiedLink ? "Link Copied!" : "Copy Link"}</span>
+          </button>
+
+          {/* Dynamic Verification Badge */}
+          <div className="flex items-center space-x-1.5 bg-[#1C2C1D]/60 text-emerald-400 px-3.5 py-1.5 rounded-full text-[9px] font-black border border-emerald-900/40 uppercase tracking-widest">
+            <ShieldCheck size={12} className="text-emerald-400" />
+            <span>Verified Student</span>
+          </div>
         </div>
       </nav>
 

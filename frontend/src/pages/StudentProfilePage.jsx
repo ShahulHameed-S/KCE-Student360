@@ -336,13 +336,35 @@ export const StudentProfilePage = () => {
             <span>{aiLoading ? "Synthesizing AI Summary..." : "Generate AI Summary"}</span>
           </button>
           {/* Secondary action in KCE teal text, white bg */}
-          <Link
-            to={`/portfolio/${student.register_no}`}
-            className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#214C55] bg-white border border-[#214C55] hover:bg-[#214C55] hover:text-white transition-all rounded-none shadow-none flex items-center space-x-2"
-          >
-            <span>Open Portfolio</span>
-            <ExternalLink size={14} />
-          </Link>
+          {student?.external_portfolio_url ? (
+            <>
+              <a
+                href={student.external_portfolio_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open Student's External Personal Portfolio"
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#214C55] hover:bg-[#163941] transition-all rounded-none shadow-none flex items-center space-x-2"
+              >
+                <span>Personal Portfolio</span>
+                <ExternalLink size={14} />
+              </a>
+              <Link
+                to={`/portfolio/${student.register_no}`}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#214C55] bg-white border border-[#214C55] hover:bg-[#214C55] hover:text-white transition-all rounded-none shadow-none flex items-center space-x-2"
+              >
+                <span>Student360 Portfolio</span>
+                <ExternalLink size={14} />
+              </Link>
+            </>
+          ) : (
+            <Link
+              to={`/portfolio/${student.register_no}`}
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#214C55] bg-white border border-[#214C55] hover:bg-[#214C55] hover:text-white transition-all rounded-none shadow-none flex items-center space-x-2"
+            >
+              <span>Open Portfolio</span>
+              <ExternalLink size={14} />
+            </Link>
+          )}
         </div>
       </div>
 

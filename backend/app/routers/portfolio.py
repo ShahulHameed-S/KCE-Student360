@@ -12,7 +12,7 @@ from app.schemas.portfolio import PortfolioCustomizationUpdate, PortfolioCustomi
 
 router = APIRouter()
 
-def serialize_customization(cust: PortfolioCustomization) -> dict:
+def serialize_customization(cust: PortfolioCustomization, register_no: str = "") -> dict:
     """Helper to convert database customization configs into camelCase/snake_case properties."""
     skills = []
     if cust.skills_json:
@@ -29,11 +29,20 @@ def serialize_customization(cust: PortfolioCustomization) -> dict:
         "showContactLinks": True,
         "showResume": True
     }
+    ext_url = ""
     if cust.section_visibility_json:
         try:
-            visibility = json.loads(cust.section_visibility_json)
+            parsed = json.loads(cust.section_visibility_json)
+            if isinstance(parsed, dict):
+                visibility = parsed
+                ext_url = parsed.get("external_portfolio_url", "")
         except Exception:
             pass
+
+    reg = register_no or (cust.student.register_no if cust.student else "")
+    from app.utils.url_utils import build_portfolio_urls, sanitize_external_url
+    clean_ext = sanitize_external_url(ext_url)
+    urls = build_portfolio_urls(reg, clean_ext)
 
     return {
         "headline": cust.headline or "",
@@ -46,6 +55,9 @@ def serialize_customization(cust: PortfolioCustomization) -> dict:
         "githubUrl": cust.github_url or "",
         "linkedin_url": cust.linkedin_url or "",
         "linkedinUrl": cust.linkedin_url or "",
+        "external_portfolio_url": urls["external_portfolio_url"],
+        "default_portfolio_url": urls["default_portfolio_url"],
+        "student360_portfolio_url": urls["student360_portfolio_url"],
         "email": cust.email or "",
         "phone": cust.phone or "",
         "location": cust.location or "",
@@ -81,6 +93,8 @@ async def get_portfolio_customization(
 
     cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == student.id).first()
     if not cust:
+        from app.utils.url_utils import build_portfolio_urls
+        urls = build_portfolio_urls(student.register_no, "")
         # Return default template structure
         return {
             "headline": "",
@@ -93,6 +107,9 @@ async def get_portfolio_customization(
             "githubUrl": "",
             "linkedin_url": "",
             "linkedinUrl": "",
+            "external_portfolio_url": urls["external_portfolio_url"],
+            "default_portfolio_url": urls["default_portfolio_url"],
+            "student360_portfolio_url": urls["student360_portfolio_url"],
             "email": "",
             "phone": "",
             "location": "",
@@ -117,7 +134,7 @@ async def get_portfolio_customization(
             "resumeVisibility": True
         }
 
-    return serialize_customization(cust)
+    return serialize_customization(cust, student.register_no)
 
 @router.put("/customization/{register_no}")
 async def update_portfolio_customization(
@@ -126,8 +143,10 @@ async def update_portfolio_customization(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Updates student's own portfolio theme, headline, Visibility limits, and links."""
+    """Updates student's own portfolio theme, headline, Visibility limits, external portfolio URL, and links."""
     from sqlalchemy import func
+    from app.utils.url_utils import sanitize_external_url, build_portfolio_urls
+
     student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found.")
@@ -162,16 +181,48 @@ async def update_portfolio_customization(
         cust.location = payload.location
     if payload.theme is not None:
         cust.theme = payload.theme
-    if payload.section_visibility_json is not None:
-        cust.section_visibility_json = json.dumps(payload.section_visibility_json)
     if payload.resume_visibility is not None:
         cust.resume_visibility = payload.resume_visibility
+
+    # Parse existing section_visibility_json
+    existing_vis = {}
+    if cust.section_visibility_json:
+        try:
+            parsed = json.loads(cust.section_visibility_json)
+            if isinstance(parsed, dict):
+                existing_vis = parsed
+        except Exception:
+            pass
+
+    if payload.section_visibility_json is not None:
+        if isinstance(payload.section_visibility_json, dict):
+            existing_vis.update(payload.section_visibility_json)
+
+    if payload.external_portfolio_url is not None:
+        raw_ext = payload.external_portfolio_url.strip()
+        if raw_ext:
+            clean_ext = sanitize_external_url(raw_ext)
+            if not clean_ext:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please enter a valid portfolio URL starting with https://"
+                )
+            existing_vis["external_portfolio_url"] = clean_ext
+        else:
+            existing_vis["external_portfolio_url"] = ""
+
+    cust.section_visibility_json = json.dumps(existing_vis)
 
     db.commit()
     db.refresh(cust)
 
+    serialized = serialize_customization(cust, student.register_no)
+
     return {
         "success": True,
-        "message": "Portfolio customization saved successfully.",
-        "customization": serialize_customization(cust)
+        "external_portfolio_url": serialized["external_portfolio_url"],
+        "default_portfolio_url": serialized["default_portfolio_url"],
+        "student360_portfolio_url": serialized["student360_portfolio_url"],
+        "message": "External portfolio link saved successfully" if payload.external_portfolio_url is not None else "Portfolio customization saved successfully.",
+        "customization": serialized
     }
