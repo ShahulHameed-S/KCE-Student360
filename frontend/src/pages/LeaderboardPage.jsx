@@ -288,8 +288,9 @@ export const LeaderboardPage = () => {
 
               <div className="flex flex-col md:flex-row items-center md:items-end justify-center gap-6 pt-4 max-w-4xl mx-auto">
                 {podiumStudents.map((student) => {
+                  const avatarSrc = getStudentImageUrl(student);
                   const isError = imgErrors[student.register_no];
-                  const showInitials = isError || !student.profile_image;
+                  const showInitials = isError || !avatarSrc;
 
                   return (
                     <div
@@ -311,7 +312,7 @@ export const LeaderboardPage = () => {
                             </div>
                           ) : (
                             <img
-                              src={student.profile_image}
+                              src={avatarSrc}
                               alt={student.name}
                               onError={() => handleImgError(student.register_no)}
                               onClick={() => handleStudentClick(student)}
@@ -384,28 +385,33 @@ export const LeaderboardPage = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                      {remainingStudents.map((student) => (
-                        <tr key={student.id || student.register_no} className="hover:bg-[#F7F7F7] transition-colors">
-                          <td className="px-6 py-3 whitespace-nowrap text-center text-[#6B7280] font-bold">
-                            {student.rank ? `#${student.rank}` : "Not ranked"}
-                          </td>
-                          <td className="px-6 py-3 whitespace-nowrap font-bold text-[#6B7280] text-xs uppercase">
-                            {student.register_no}
-                          </td>
-                          <td className="px-6 py-3 whitespace-nowrap font-bold text-[#214C55]">
-                            <div className="flex items-center space-x-3">
-                              {imgErrors[student.register_no] || !student.profile_image ? (
-                                <div className="w-8 h-8 rounded-full bg-[#214C55] text-white flex items-center justify-center text-[10px] font-black border border-[#D1D5DB]">
-                                  {getInitials(student.name)}
-                                </div>
-                              ) : (
-                                <img
-                                  src={student.profile_image}
-                                  alt={student.name}
-                                  onError={() => handleImgError(student.register_no)}
-                                  className="w-8 h-8 rounded-full object-cover border border-[#D1D5DB]"
-                                />
-                              )}
+                      {remainingStudents.map((student) => {
+                        const avatarSrc = getStudentImageUrl(student);
+                        const isError = imgErrors[student.register_no];
+                        const showInitials = isError || !avatarSrc;
+
+                        return (
+                          <tr key={student.id || student.register_no} className="hover:bg-[#F7F7F7] transition-colors">
+                            <td className="px-6 py-3 whitespace-nowrap text-center text-[#6B7280] font-bold">
+                              {student.rank ? `#${student.rank}` : "Not ranked"}
+                            </td>
+                            <td className="px-6 py-3 whitespace-nowrap font-bold text-[#6B7280] text-xs uppercase">
+                              {student.register_no}
+                            </td>
+                            <td className="px-6 py-3 whitespace-nowrap font-bold text-[#214C55]">
+                              <div className="flex items-center space-x-3">
+                                {showInitials ? (
+                                  <div className="w-8 h-8 rounded-full bg-[#214C55] text-white flex items-center justify-center text-[10px] font-black border border-[#D1D5DB]">
+                                    {getInitials(student.name)}
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={avatarSrc}
+                                    alt={student.name}
+                                    onError={() => handleImgError(student.register_no)}
+                                    className="w-8 h-8 rounded-full object-cover border border-[#D1D5DB]"
+                                  />
+                                )}
                               <span
                                 onClick={() => handleStudentClick(student)}
                                 className="hover:underline cursor-pointer"
@@ -475,9 +481,10 @@ export const LeaderboardPage = () => {
                             )}
                           </div>
                         </td>
-                      </tr>
-                    ))}
-                  </tbody>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
                 </table>
               </div>
             </div>

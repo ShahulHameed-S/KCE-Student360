@@ -140,6 +140,11 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
                 "profile_image": profile_image,
                 "profileImage": profile_image,
                 "avatar_url": profile_image,
+                "avatarUrl": profile_image,
+                "profile_image_url": profile_image,
+                "profileImageUrl": profile_image,
+                "image_url": profile_image,
+                "imageUrl": profile_image,
                 "external_portfolio_url": port_urls["external_portfolio_url"],
                 "default_portfolio_url": port_urls["default_portfolio_url"],
                 "student360_portfolio_url": port_urls["student360_portfolio_url"]

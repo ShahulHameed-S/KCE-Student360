@@ -4,16 +4,37 @@ import ScoreBadge from "../common/ScoreBadge";
 import DomainBadge from "../common/DomainBadge";
 import { Mail, Calendar, ArrowRight } from "lucide-react";
 
+import { getStudentImageUrl } from "../../utils/imageUtils";
+
 export const StudentCard = ({ student }) => {
   if (!student) return null;
+
+  const [imgError, setImgError] = React.useState(false);
+  const avatarSrc = getStudentImageUrl(student);
+
+  const getInitials = (name) => {
+    if (!name) return "ST";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
 
   return (
     <div className="bg-white rounded-none border border-[#D1D5DB] border-t-4 border-t-[#C76F2B] shadow-none flex flex-col justify-between hover:border-[#C76F2B] transition-all p-6 space-y-4">
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 rounded-none bg-[#F7F7F7] border border-[#D1D5DB] flex items-center justify-center text-[#214C55] font-black text-lg shadow-none">
-            {student.name.charAt(0)}
-          </div>
+          {avatarSrc && !imgError ? (
+            <img
+              src={avatarSrc}
+              alt={student.name}
+              onError={() => setImgError(true)}
+              className="w-12 h-12 rounded-none object-cover border border-[#D1D5DB]"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-none bg-[#214C55] text-white flex items-center justify-center font-black text-base border border-[#D1D5DB]">
+              {getInitials(student.name)}
+            </div>
+          )}
           <div>
             <h4 className="font-extrabold text-[#214C55] leading-tight uppercase text-sm">{student.name}</h4>
             <span className="text-[10px] text-[#6B7280] font-bold uppercase tracking-wider">{student.register_no}</span>

@@ -82,9 +82,13 @@ export const AuthProvider = ({ children }) => {
             // Network fallback: use local storage data
             setUser(JSON.parse(savedUser));
           } else {
-            // Token invalid/expired: logout
-            console.warn("Session invalid, clearing credentials.");
-            localStorage.clear();
+            // Token invalid/expired: logout specific auth keys
+            console.warn("Session invalid, clearing auth tokens.");
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("currentUser");
+            localStorage.removeItem("user");
+            localStorage.removeItem("token");
             setUser(null);
           }
         }

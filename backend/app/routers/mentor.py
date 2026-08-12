@@ -246,64 +246,83 @@ async def get_mentor_students(
 ):
     """Retrieves list of assigned students for a mentor (or all for admin/faculty)."""
     from app.models.score import StudentAnalytics
+    from app.models.profile import UserProfile
+    from app.models.portfolio import PortfolioCustomization
+    from app.utils.url_utils import build_portfolio_urls
 
     students = resolve_mentor_students(db, current_user)
 
-    from app.models.profile import UserProfile
-
     res_list = []
     for s in students:
-        analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
-        
-        img_url = s.profile_image or ""
-        if not img_url and s.user_id:
-            user_prof = db.query(UserProfile).filter(UserProfile.user_id == s.user_id).first()
-            if user_prof and user_prof.profile_image:
-                img_url = user_prof.profile_image
+        try:
+            analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
+            
+            # Safe profile image resolution
+            img_url = getattr(s, "profile_image", None) or ""
+            if not img_url and getattr(s, "user_id", None):
+                try:
+                    user_prof = db.query(UserProfile).filter(UserProfile.user_id == s.user_id).first()
+                    if user_prof and getattr(user_prof, "profile_image", None):
+                        img_url = user_prof.profile_image
+                except Exception:
+                    pass
 
-        ext_url = ""
-        cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
-        if cust and cust.section_visibility_json:
+            # Safe external portfolio URL resolution
+            ext_url = ""
             try:
-                parsed = json.loads(cust.section_visibility_json)
-                if isinstance(parsed, dict):
-                    ext_url = parsed.get("external_portfolio_url", "")
+                cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
+                if cust and getattr(cust, "section_visibility_json", None):
+                    parsed = json.loads(cust.section_visibility_json)
+                    if isinstance(parsed, dict):
+                        ext_url = parsed.get("external_portfolio_url", "")
             except Exception:
                 pass
 
-        from app.utils.url_utils import build_portfolio_urls
-        port_urls = build_portfolio_urls(s.register_no, ext_url)
+            reg_no = getattr(s, "register_no", "") or ""
+            port_urls = build_portfolio_urls(reg_no, ext_url)
 
-        res_list.append({
-            "id": s.id,
-            "user_id": s.user_id,
-            "userId": s.user_id,
-            "register_no": s.register_no,
-            "registerNo": s.register_no,
-            "name": s.name,
-            "email": s.email,
-            "phone": s.phone or "",
-            "department": s.department,
-            "year": s.year,
-            "section": s.section,
-            "batch": s.batch,
-            "cgpa": s.cgpa,
-            "avatar_url": img_url,
-            "profile_image_url": img_url,
-            "image_url": img_url,
-            "profile_image": img_url,
-            "profileImage": img_url,
-            "external_portfolio_url": port_urls["external_portfolio_url"],
-            "default_portfolio_url": port_urls["default_portfolio_url"],
-            "student360_portfolio_url": port_urls["student360_portfolio_url"],
-            "created_at": s.created_at.isoformat() if s.created_at else "",
-            "overall_score": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
-            "overallScore": analytics.overall_score if (analytics and analytics.overall_score is not None) else None,
-            "strongest_domain": analytics.strongest_domain if (analytics and analytics.strongest_domain) else "Not added",
-            "strongestDomain": analytics.strongest_domain if (analytics and analytics.strongest_domain) else "Not added",
-            "weakest_domain": analytics.weakest_domain if (analytics and analytics.weakest_domain) else "Not added",
-            "weakestDomain": analytics.weakest_domain if (analytics and analytics.weakest_domain) else "Not added"
-        })
+            overall_sc = None
+            str_dom = "Not added"
+            weak_dom = "Not added"
+            if analytics and getattr(analytics, "overall_score", None) is not None:
+                overall_sc = analytics.overall_score
+                str_dom = getattr(analytics, "strongest_domain", None) or "Not added"
+                weak_dom = getattr(analytics, "weakest_domain", None) or "Not added"
+
+            res_list.append({
+                "id": s.id,
+                "user_id": getattr(s, "user_id", None),
+                "userId": getattr(s, "user_id", None),
+                "register_no": reg_no,
+                "registerNo": reg_no,
+                "name": getattr(s, "name", "") or "",
+                "email": getattr(s, "email", "") or "",
+                "phone": getattr(s, "phone", "") or "",
+                "department": getattr(s, "department", "") or "",
+                "year": getattr(s, "year", "") or "",
+                "section": getattr(s, "section", "") or "",
+                "batch": getattr(s, "batch", "") or "",
+                "cgpa": getattr(s, "cgpa", 0.0) or 0.0,
+                "avatar_url": img_url,
+                "profile_image_url": img_url,
+                "image_url": img_url,
+                "profile_image": img_url,
+                "profileImage": img_url,
+                "external_portfolio_url": port_urls["external_portfolio_url"],
+                "default_portfolio_url": port_urls["default_portfolio_url"],
+                "student360_portfolio_url": port_urls["student360_portfolio_url"],
+                "created_at": s.created_at.isoformat() if getattr(s, "created_at", None) else "",
+                "overall_score": overall_sc,
+                "overallScore": overall_sc,
+                "strongest_domain": str_dom,
+                "strongestDomain": str_dom,
+                "weakest_domain": weak_dom,
+                "weakestDomain": weak_dom
+            })
+        except Exception as err:
+            print(f"[WARN] Error serializing mentor student ID {getattr(s, 'id', None)}: {err}")
+            continue
+
     return res_list
 
 

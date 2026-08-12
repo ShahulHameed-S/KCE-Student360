@@ -208,9 +208,15 @@ export const StudentListPage = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 text-[#B91C1C] px-6 py-4 rounded-none max-w-lg mx-auto text-center mt-12 shadow-none font-bold">
-        <h3 className="font-bold text-base uppercase">Directory Error</h3>
-        <p className="text-xs mt-1">{error}</p>
+      <div className="bg-red-50 border border-red-200 text-[#B91C1C] px-6 py-6 rounded-none max-w-lg mx-auto text-center mt-12 shadow-none font-bold space-y-3">
+        <h3 className="font-extrabold text-base uppercase tracking-wider">Unable to Load Students Directory</h3>
+        <p className="text-xs font-semibold">{error || "Unable to load students. Please try again."}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-[#214C55] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#163941] transition-all rounded-none shadow-none cursor-pointer"
+        >
+          Retry Loading Directory
+        </button>
       </div>
     );
   }

@@ -29,6 +29,7 @@ allowed_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://kce-student360.vercel.app",
+    "https://kce-student360-backend.onrender.com"
 ]
 
 app.add_middleware(
@@ -39,6 +40,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+def startup_db_migrations():
+    """Ensure database tables and columns exist without deleting or altering existing data."""
+    try:
+        from app.database import engine, Base
+        import app.models  # Register all models
+        Base.metadata.create_all(bind=engine)
+        
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE students ADD COLUMN IF NOT EXISTS profile_image VARCHAR;"))
+            conn.execute(text("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS profile_image VARCHAR;"))
+            conn.execute(text("ALTER TABLE portfolio_customizations ADD COLUMN IF NOT EXISTS section_visibility_json TEXT;"))
+    except Exception as e:
+        print(f"[STARTUP MIGRATION WARNING] {e}")
 
 # Mount local uploads static directory
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
