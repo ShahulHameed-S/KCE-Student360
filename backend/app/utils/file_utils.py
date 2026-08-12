@@ -4,14 +4,24 @@ from datetime import datetime
 from fastapi import UploadFile, HTTPException
 from app.config import settings
 
-# Attempt to import Supabase client dynamically if keys exist
-supabase_client = None
-if settings.SUPABASE_URL and settings.SUPABASE_SERVICE_ROLE_KEY:
-    try:
-        from supabase import create_client
-        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
-    except Exception as e:
-        print(f"Warning: Failed to initialize Supabase client: {e}")
+def get_supabase_client():
+    """Initializes and returns Supabase client using configured keys."""
+    supabase_url = settings.SUPABASE_URL or os.environ.get("SUPABASE_URL")
+    supabase_key = (
+        settings.SUPABASE_SERVICE_ROLE_KEY or
+        settings.SUPABASE_KEY or
+        settings.SUPABASE_ANON_KEY or
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or
+        os.environ.get("SUPABASE_KEY") or
+        os.environ.get("SUPABASE_ANON_KEY")
+    )
+    if supabase_url and supabase_key:
+        try:
+            from supabase import create_client
+            return create_client(supabase_url, supabase_key)
+        except Exception as e:
+            print(f"Warning: Failed to initialize Supabase client: {e}")
+    return None
 
 ALLOWED_EXTENSIONS = {
     "profile": {".jpg", ".jpeg", ".png", ".webp"},
@@ -58,26 +68,30 @@ async def save_upload_file(file: UploadFile, folder: str) -> str:
     await file.seek(0)
 
     # 1. Supabase Storage Option
-    if supabase_client and settings.SUPABASE_STORAGE_BUCKET:
+    client = get_supabase_client()
+    bucket = settings.SUPABASE_STORAGE_BUCKET or os.environ.get("SUPABASE_STORAGE_BUCKET") or "student360-uploads"
+    
+    if client and bucket:
         try:
-            bucket = settings.SUPABASE_STORAGE_BUCKET
             # Path inside the bucket: folder/filename (e.g. profile/20260709_100000_abcd.png)
             path_in_bucket = f"{folder}/{filename}"
             
             # Perform upload using supabase storage client
             content_type = file.content_type or "application/octet-stream"
-            response = supabase_client.storage.from_(bucket).upload(
+            client.storage.from_(bucket).upload(
                 path=path_in_bucket,
                 file=content,
-                file_options={"content-type": content_type}
+                file_options={"content-type": content_type, "upsert": "true"}
             )
             
             # Obtain the public URL
-            public_url = supabase_client.storage.from_(bucket).get_public_url(path_in_bucket)
-            return public_url
+            public_url = client.storage.from_(bucket).get_public_url(path_in_bucket)
+            if public_url:
+                print(f"[STORAGE_SUCCESS] Uploaded to Supabase Storage: {public_url}")
+                return public_url
         except Exception as e:
             # Fallback to local save if Supabase upload fails
-            print(f"Supabase Storage upload failed, falling back to local storage. Error: {e}")
+            print(f"[STORAGE_WARNING] Supabase Storage upload failed, falling back to local storage. Error: {e}")
 
     # 2. Local Storage Fallback
     local_folder_path = os.path.join(settings.UPLOAD_DIR, folder)

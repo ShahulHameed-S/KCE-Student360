@@ -413,7 +413,7 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
     return name.slice(0, 2).toUpperCase();
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
       const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -421,15 +421,47 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
         setMessage("Invalid file format. Please upload JPG, PNG, or WEBP.");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
+      try {
+        setMessage("Uploading profile image to permanent storage...");
+        const res = await profileService.uploadProfileImage(file);
+        const newUrl = res.avatar_url || res.profile_image_url || res.profileImage || res.profile_image;
+        
         setProfileData(prev => ({
           ...prev,
-          profileImage: reader.result,
-          profileImageName: file.name
+          avatar_url: newUrl,
+          profile_image_url: newUrl,
+          image_url: newUrl,
+          profileImage: newUrl,
+          profile_image: newUrl,
+          profileImageName: ""
         }));
-      };
-      reader.readAsDataURL(file);
+
+        if (updateUser) {
+          updateUser({
+            name: profileData.fullName || user?.name,
+            email: profileData.email || user?.email,
+            avatar_url: newUrl,
+            profile_image_url: newUrl,
+            image_url: newUrl,
+            profileImage: newUrl,
+            profile_image: newUrl,
+            profileImageUpdatedAt: Date.now()
+          });
+        }
+        setMessage("Profile image updated successfully.");
+        setTimeout(() => setMessage(""), 4000);
+      } catch (err) {
+        console.error("Instant image upload failed, setting local preview fallback:", err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setProfileData(prev => ({
+            ...prev,
+            profileImage: reader.result,
+            profileImageName: file.name
+          }));
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 

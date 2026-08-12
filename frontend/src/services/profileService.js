@@ -187,6 +187,35 @@ export const profileService = {
 
     profile.profileImage = imageData;
     return await profileService.saveProfile(role, userId, profile);
+  },
+
+  uploadProfileImage: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file, file.name || "profile.png");
+
+    const imgResponse = await api.post("/users/me/profile-image", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+
+    const publicUrl = imgResponse.data.avatar_url || imgResponse.data.profile_image_url || imgResponse.data.image_url || imgResponse.data.profileImage || imgResponse.data.profile_image;
+
+    ["currentUser", "user"].forEach((k) => {
+      const savedUserRaw = localStorage.getItem(k);
+      if (savedUserRaw) {
+        try {
+          const savedUser = JSON.parse(savedUserRaw);
+          savedUser.avatar_url = publicUrl;
+          savedUser.profile_image_url = publicUrl;
+          savedUser.image_url = publicUrl;
+          savedUser.profileImage = publicUrl;
+          savedUser.profile_image = publicUrl;
+          savedUser.profileImageUpdatedAt = Date.now();
+          localStorage.setItem(k, JSON.stringify(savedUser));
+        } catch (e) {}
+      }
+    });
+
+    return imgResponse.data;
   }
 };
 

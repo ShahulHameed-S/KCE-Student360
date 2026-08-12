@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         description="Database connection URL"
     )
     SUPABASE_URL: Optional[str] = Field(default=None, description="Supabase project URL")
+    SUPABASE_KEY: Optional[str] = Field(default=None, description="Supabase API key")
     SUPABASE_ANON_KEY: Optional[str] = Field(default=None, description="Supabase anonymous key")
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = Field(default=None, description="Supabase service role key")
     SUPABASE_STORAGE_BUCKET: str = Field(default="student360-uploads", description="Supabase Storage bucket name")

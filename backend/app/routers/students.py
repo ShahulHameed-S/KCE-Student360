@@ -177,17 +177,29 @@ async def debug_student_by_id(
     scores_count = db.query(AssessmentScore).filter(AssessmentScore.student_id == student.id).count()
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
 
+    from app.models.profile import UserProfile
+    user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first() if student.user_id else None
+    u_img = user_prof.profile_image if user_prof and user_prof.profile_image else ""
+    s_img = student.profile_image or ""
+
     return {
         "requested": id_or_register_no,
         "student_found": True,
         "student_id": student.id,
         "user_id": student.user_id,
         "register_no": student.register_no,
+        "student_profile_image": s_img,
+        "user_profile_image": u_img,
         "avatar_url": img_url,
         "profile_image_url": img_url,
         "image_url": img_url,
         "profile_image": img_url,
+        "avatar_source": img_src,
         "source": img_src,
+        "is_public_url": bool(img_url.startswith("http://") or img_url.startswith("https://")),
+        "is_blob_url": bool(img_url.startswith("blob:")),
+        "is_localhost_url": bool("localhost" in img_url or "127.0.0.1" in img_url),
+        "is_relative_upload_url": bool(img_url.startswith("/uploads")),
         "mentor_email": current_user.email,
         "mentor_access": mentor_access,
         "access_reason": access_reason,
