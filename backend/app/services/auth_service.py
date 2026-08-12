@@ -7,33 +7,78 @@ from app.utils.security import verify_password
 
 def authenticate_user(db: Session, identifier: str, password_plain: str):
     """
-    Authenticates a user by email, username, or student register number.
+    Authenticates a user by email, username, college email format, or student register number.
+    Supports case-insensitive matching, extra whitespace trimming, and lowercase i / uppercase I resolution.
     Verifies password and returns the User object if successful.
     Raises 403 if user is inactive. Returns None if invalid credentials.
     """
     if not identifier:
         return None
         
-    identifier = identifier.strip()
+    login_id = identifier.strip()
+    if not login_id:
+        return None
 
-    # 1. Search by email or username in User table case-insensitively
-    user = db.query(User).filter(
-        (func.lower(User.email) == identifier.lower()) | 
-        (func.lower(User.username) == identifier.lower())
-    ).first()
-    
-    # 2. If not found, check if it's a student's register number case-insensitively
+    user = None
+    match_source = None
+
+    # 1. Step 1: Exact email match in User table (case-insensitive)
+    user = db.query(User).filter(func.lower(User.email) == login_id.lower()).first()
+    if user:
+        match_source = "exact_user_email"
+
+    # 2. Step 2: Username match in User table (case-insensitive)
+    if not user:
+        user = db.query(User).filter(func.lower(User.username) == login_id.lower()).first()
+        if user:
+            match_source = "exact_user_username"
+
+    # 3. Step 3: College email format (e.g. 717824i354@kce.ac.in or 717824I354@kce.ac.in)
+    if not user and "@" in login_id:
+        local_part = login_id.split("@")[0].strip()
+        if local_part:
+            # Try matching student register_no case-insensitively with local_part
+            student = db.query(Student).filter(
+                func.lower(Student.register_no) == local_part.lower()
+            ).first()
+            if student:
+                user = db.query(User).filter(User.id == student.user_id).first()
+                if not user and student.email:
+                    user = db.query(User).filter(func.lower(User.email) == student.email.lower()).first()
+                if not user:
+                    user = db.query(User).filter(func.lower(User.username) == local_part.lower()).first()
+                if user:
+                    match_source = "generated_email_student_register_no"
+
+            # If student record wasn't found by register_no, try username match with local_part
+            if not user:
+                user = db.query(User).filter(func.lower(User.username) == local_part.lower()).first()
+                if user:
+                    match_source = "generated_email_user_username"
+
+    # 4. Step 4: Direct student register_no match (case-insensitive)
     if not user:
         student = db.query(Student).filter(
-            func.lower(Student.register_no) == identifier.lower()
+            func.lower(Student.register_no) == login_id.lower()
         ).first()
         if student:
             user = db.query(User).filter(User.id == student.user_id).first()
+            if not user and student.email:
+                user = db.query(User).filter(func.lower(User.email) == student.email.lower()).first()
+            if user:
+                match_source = "direct_student_register_no"
+
+    # Safe debug logging (no passwords or hashes logged)
+    import os
+    if os.environ.get("ENV") != "production":
+        print(f"[AUTH_DEBUG] Identifier: '{login_id}' | User Found: {user is not None} | Match Source: {match_source} | Role: {user.role if user else 'None'}")
 
     if not user:
         return None
         
     if not verify_password(password_plain, user.password_hash):
+        if os.environ.get("ENV") != "production":
+            print(f"[AUTH_DEBUG] Password verification failed for user_id={user.id}, username={user.username}")
         return None
         
     if not user.is_active:

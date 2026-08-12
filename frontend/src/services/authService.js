@@ -49,9 +49,10 @@ const tryMockLogin = (identifier, password) => {
 
 export const authService = {
   login: async (identifier, password) => {
+    const cleanIdentifier = (identifier || "").trim();
     try {
       const response = await api.post("/auth/login", {
-        email: identifier,
+        email: cleanIdentifier,
         password,
       }, {
         timeout: 120000
