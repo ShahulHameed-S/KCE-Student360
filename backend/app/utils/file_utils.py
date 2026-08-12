@@ -73,36 +73,35 @@ async def save_upload_file(file: UploadFile, folder: str, user_id: int = None) -
     # 1. Supabase Storage Option
     client = get_supabase_client()
     bucket = settings.SUPABASE_STORAGE_BUCKET or os.environ.get("SUPABASE_STORAGE_BUCKET") or "student360-uploads"
-    
-    if client and bucket:
-        try:
-            folder_path = "profile-images" if folder in ["profile", "profile-images"] else folder
-            path_in_bucket = f"{folder_path}/{filename}"
-            
-            # Perform upload using supabase storage client
-            content_type = file.content_type or "application/octet-stream"
-            client.storage.from_(bucket).upload(
-                path=path_in_bucket,
-                file=content,
-                file_options={"content-type": content_type, "upsert": "true"}
-            )
-            
-            # Obtain the public URL
-            public_url = client.storage.from_(bucket).get_public_url(path_in_bucket)
-            if public_url:
-                print(f"[STORAGE_SUCCESS] Uploaded to Supabase Storage: {public_url}")
-                return public_url
-        except Exception as e:
-            # Fallback to local save if Supabase upload fails
-            print(f"[STORAGE_WARNING] Supabase Storage upload failed, falling back to local storage. Error: {e}")
+    folder_path = "profile-images" if folder in ["profile", "profile-images"] else folder
+    path_in_bucket = f"{folder_path}/{filename}"
+    content_type = file.content_type or "application/octet-stream"
 
-    # 2. Local Storage Fallback
-    local_folder_path = os.path.join(settings.UPLOAD_DIR, folder)
-    os.makedirs(local_folder_path, exist_ok=True)
-    
-    local_file_path = os.path.join(local_folder_path, filename)
-    with open(local_file_path, "wb") as f:
-        f.write(content)
+    print("PROFILE IMAGE UPLOAD STARTED")
+    print("filename:", file.filename)
+    print("bucket:", bucket)
+    print("supabase_url:", settings.SUPABASE_URL or os.environ.get("SUPABASE_URL"))
+    print("upload path:", path_in_bucket)
+
+    if not client:
+        err_msg = "SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY environment variable is missing on backend server."
+        print(f"[STORAGE_ERROR] {err_msg}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload profile image to Supabase Storage: {err_msg}")
+
+    try:
+        client.storage.from_(bucket).upload(
+            path=path_in_bucket,
+            file=content,
+            file_options={"content-type": content_type, "upsert": "true"}
+        )
         
-    # Return path compatible with static route mapping
-    return f"/uploads/{folder}/{filename}"
+        public_url = client.storage.from_(bucket).get_public_url(path_in_bucket)
+        if public_url:
+            print(f"[STORAGE_SUCCESS] Uploaded to Supabase Storage: {public_url}")
+            return public_url, bucket, path_in_bucket
+    except Exception as e:
+        print(f"[STORAGE_ERROR] Supabase Storage upload failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to upload profile image to Supabase Storage: {str(e)}"
+        )

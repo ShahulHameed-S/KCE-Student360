@@ -276,7 +276,7 @@ async def upload_my_profile_image(
         db.add(profile)
         db.flush()
 
-    file_url = await save_upload_file(file, "profile", user_id=current_user.id)
+    file_url, storage_bucket, storage_path = await save_upload_file(file, "profile", user_id=current_user.id)
     profile.profile_image = file_url
 
     # Synchronize to student profile image if role is student
@@ -308,5 +308,7 @@ async def upload_my_profile_image(
         "image_url": file_url,
         "profile_image": file_url,
         "profileImage": file_url,
+        "storage_bucket": storage_bucket,
+        "storage_path": storage_path,
         "message": "Profile image updated successfully"
     }

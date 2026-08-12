@@ -520,16 +520,9 @@ const MyProfileSection = ({ profileData, setProfileData, message, setMessage, us
         setMessage("Profile image updated successfully.");
         setTimeout(() => setMessage(""), 4000);
       } catch (err) {
-        console.error("Instant image upload failed, setting local preview fallback:", err);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setProfileData(prev => ({
-            ...prev,
-            profileImage: reader.result,
-            profileImageName: file.name
-          }));
-        };
-        reader.readAsDataURL(file);
+        console.error("Profile image upload failed:", err);
+        const errorMsg = err.response?.data?.detail || err.message || "Failed to upload profile image to Supabase Storage.";
+        setMessage(`Error: ${errorMsg}`);
       }
     }
   };
