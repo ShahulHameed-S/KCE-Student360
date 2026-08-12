@@ -500,7 +500,7 @@ export const PortfolioPage = () => {
 
   const visibleSections = {
     about: customSections.about?.visible !== false,
-    performance: customSections.performance?.visible !== false,
+    performance: false,
     resume: customSections.resume?.visible !== false && isResumeVisible,
     projects: customSections.projects?.visible !== false && hasProjects,
     certifications: customSections.certifications?.visible !== false,
@@ -510,7 +510,6 @@ export const PortfolioPage = () => {
 
   const tabs = [
     ...(visibleSections.about ? [{ id: "about", label: customSections.about?.title || "About" }] : []),
-    ...(visibleSections.performance ? [{ id: "performance", label: customSections.performance?.title || "Performance" }] : []),
     ...(visibleSections.resume ? [{ id: "resume", label: customSections.resume?.title || "Resume" }] : []),
     ...(visibleSections.projects ? [{ id: "projects", label: customSections.projects?.title || "Projects" }] : []),
     ...(visibleSections.achievements ? [{ id: "achievements", label: customSections.achievements?.title || "Achievements" }] : []),
@@ -720,6 +719,24 @@ export const PortfolioPage = () => {
 
             {/* CTA Action Buttons */}
             <div className="flex flex-wrap gap-3 pt-2">
+              {portfolio?.external_portfolio_url && (
+                <a
+                  href={portfolio.external_portfolio_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2.5 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg flex items-center space-x-1.5"
+                >
+                  <ExternalLink size={14} />
+                  <span>Visit Personal Portfolio</span>
+                </a>
+              )}
+              <button
+                onClick={handleCopyStudent360Link}
+                className="px-5 py-2.5 bg-[#111114] hover:bg-[#1E1E24] text-white border border-[#2E2E33] text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center space-x-1.5"
+              >
+                {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-[#A855F7]" />}
+                <span>{copiedLink ? "Link Copied!" : "Copy Student360 Link"}</span>
+              </button>
               <button
                 onClick={() => scrollToSection("resume")}
                 className="px-5 py-2.5 bg-[#A855F7] hover:bg-[#8B5CF6] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-lg hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] flex items-center space-x-1.5"
@@ -939,161 +956,7 @@ export const PortfolioPage = () => {
               </div>
             )}
 
-            {/* 1. Performance Timeline */}
-            {customSections.performance?.visible !== false && (
-              <div id="performance" className="space-y-4 text-left">
-                <div className="border-b border-[#2E2E33] pb-2 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-sm font-black text-white uppercase tracking-wider font-sans">
-                      {customSections.performance?.title || "Performance Timeline"}
-                    </h3>
-                    <p className="text-[10px] text-[#A1A1AA] font-bold mt-0.5 font-sans">Verified academic and technical assessment history.</p>
-                  </div>
-                  <TrendingUp size={16} className="text-[#A855F7]" />
-                </div>
 
-                <div className="bg-[#111114]/80 backdrop-blur-md border border-[#2E2E33] rounded-2xl p-6 shadow-xl relative overflow-hidden group hover:border-[#A855F7]/30 transition-all space-y-6">
-                  {Array.isArray(studentPerformance) && studentPerformance.length > 0 ? (
-                    <div className="space-y-6">
-                      <div className="relative border-l-2 border-[#A855F7]/40 pl-6 ml-2 space-y-6">
-                        {(showAllPerformance ? studentPerformance : studentPerformance.slice(0, 5)).map((perf, idx) => (
-                          <div key={idx} className="relative group/item">
-                            {/* Dot */}
-                            <span className="absolute -left-[31px] top-1.5 w-3.5 h-3.5 bg-[#A855F7] rounded-full border-4 border-[#050507] group-hover/item:scale-125 transition-transform shadow-[0_0_8px_rgba(168,85,247,0.5)]"></span>
-                            
-                            {/* Entry Card */}
-                            <div className="bg-[#18181D]/60 border border-[#2E2E33] rounded-xl p-4 flex items-center justify-between hover:border-[#A855F7]/30 hover:bg-[#18181D]/90 transition-all shadow-md">
-                              <div className="space-y-1.5 min-w-0 pr-4">
-                                <span className="text-[8px] font-extrabold text-[#A855F7] tracking-wider uppercase bg-[#A855F7]/10 px-2 py-0.5 rounded border border-[#A855F7]/20 font-mono">
-                                  {perf.date || "Verified Entry"}
-                                </span>
-                                <h5 className="text-xs font-bold text-white uppercase tracking-tight truncate max-w-sm" title={perf.assessment_name}>
-                                  {perf.assessment_name}
-                                </h5>
-                                <div className="flex items-center space-x-2 text-[9px] text-[#A1A1AA] font-semibold">
-                                  <span>Category: <strong className="text-slate-300">{perf.category}</strong></span>
-                                  <span className="w-1 h-1 rounded-full bg-[#71717A]"></span>
-                                  <span>Code: <strong className="text-slate-300 font-mono">{perf.assessment_code || "N/A"}</strong></span>
-                                </div>
-                              </div>
-                              
-                              {/* Score Badge */}
-                              <div className="flex flex-col items-end space-y-1.5 flex-shrink-0">
-                                <div className="px-2.5 py-1 bg-[#1C2C1D]/60 text-emerald-400 text-[10px] font-black border border-emerald-950 rounded-lg font-mono">
-                                  {perf.percentage || perf.score}%
-                                </div>
-                                <div className="w-16 bg-[#111114] h-1 rounded-full overflow-hidden border border-[#2E2E33]">
-                                  <div 
-                                    className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full" 
-                                    style={{ width: `${perf.percentage || perf.score}%` }}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      
-                      {studentPerformance.length > 5 && (
-                        <div className="pt-2 flex justify-center">
-                          <button
-                            onClick={() => setShowAllPerformance(prev => !prev)}
-                            className="px-4 py-2 bg-[#18181D] hover:bg-[#2E2E33] text-white text-[9px] font-black uppercase tracking-widest rounded-xl border border-[#2E2E33] hover:border-[#A855F7]/40 transition-all cursor-pointer shadow-md"
-                          >
-                            {showAllPerformance ? "Show Less History" : "View Complete History"}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-xs text-[#A1A1AA] font-semibold font-mono">
-                      <TrendingUp size={24} className="mx-auto mb-2 text-[#71717A] opacity-60" />
-                      <span>No verified assessment history logs available.</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* 2. Domain Skill Matrix */}
-            {customSections.performance?.visible !== false && (
-              <div className="space-y-4 text-left">
-                <div className="border-b border-[#2E2E33] pb-2 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-sm font-black text-white uppercase tracking-wider font-sans">Verified Domain Scales</h3>
-                    <p className="text-[10px] text-[#A1A1AA] font-bold mt-0.5 font-sans">Competency index mapping across core tracks.</p>
-                  </div>
-                  <Cpu size={16} className="text-[#A855F7]" />
-                </div>
-
-                <div className="bg-[#111114]/80 backdrop-blur-md border border-[#2E2E33] rounded-2xl p-6 shadow-xl space-y-6 hover:border-[#A855F7]/30 transition-all">
-                  {/* Insights */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="bg-[#18181D]/60 border border-[#2E2E33] rounded-xl p-4 space-y-2 hover:border-emerald-500/20 transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[8px] tracking-wider uppercase text-[#71717A] font-mono">Strongest track</span>
-                        <Award size={14} className="text-emerald-400" />
-                      </div>
-                      <div className="text-sm font-black text-white uppercase truncate">
-                        {portfolio.strongest_domain || "FullStack Dev"}
-                      </div>
-                      <span className="text-[9px] text-emerald-400 font-extrabold uppercase font-mono block">Verified Peak</span>
-                    </div>
-
-                    <div className="bg-[#18181D]/60 border border-[#2E2E33] rounded-xl p-4 space-y-2 hover:border-amber-500/20 transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[8px] tracking-wider uppercase text-[#71717A] font-mono">Focus track</span>
-                        <AlertTriangle size={14} className="text-amber-500" />
-                      </div>
-                      <div className="text-sm font-black text-white uppercase truncate">
-                        {portfolio.weakest_domain || "Aptitude Track"}
-                      </div>
-                      <span className="text-[9px] text-amber-500 font-extrabold uppercase font-mono block">Needs Review</span>
-                    </div>
-
-                    <div className="bg-[#18181D]/60 border border-[#2E2E33] rounded-xl p-4 space-y-2 hover:border-[#F5C542]/20 transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[8px] tracking-wider uppercase text-[#71717A] font-mono">Competency Index</span>
-                        <Trophy size={14} className="text-[#F5C542]" />
-                      </div>
-                      <div className="text-sm font-black text-white uppercase font-mono">
-                        {(hero?.showCgpa !== false && customizationData?.showCgpa !== false) ? cgpaText : "Hidden"}
-                      </div>
-                      <span className="text-[9px] text-[#F5C542] font-extrabold uppercase font-mono block">Overall GPA</span>
-                    </div>
-                  </div>
-
-                  {/* Progress bars Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 pt-2 border-t border-[#2E2E33]/40">
-                    {[
-                      { name: "DSA Index", key: "DSA", defScore: 85 },
-                      { name: "DBMS Index", key: "DBMS", defScore: 90 },
-                      { name: "FullStack Dev", key: "FullStack", defScore: 95 },
-                      { name: "Aptitude Score", key: "Aptitude", defScore: 75 },
-                      { name: "Competitive Coding", key: "Coding", defScore: 92 },
-                      { name: "Academic GPA Average", key: "Academic", defScore: 88 },
-                      { name: "Technical Electives", key: "Technical", defScore: 84 }
-                    ].map((comp) => {
-                      const score = portfolio.visibility?.showAcademicHighlights !== false ? comp.defScore : 80;
-                      return (
-                        <div key={comp.key} className="space-y-1.5">
-                          <div className="flex items-center justify-between text-xs font-bold text-slate-300">
-                            <span className="tracking-tight">{comp.name}</span>
-                            <span className="text-[#A855F7] font-mono">{score}%</span>
-                          </div>
-                          <div className="w-full bg-[#050507] h-2.5 rounded-full overflow-hidden border border-[#2E2E33] p-[1.5px]">
-                            <div
-                              className="bg-gradient-to-r from-[#8B5CF6] to-[#A855F7] h-full rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(168,85,247,0.4)]"
-                              style={{ width: `${score}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* 3. Resume / Career Profile */}
             {customSections.resume?.visible !== false && (
