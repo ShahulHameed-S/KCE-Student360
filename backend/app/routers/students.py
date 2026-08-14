@@ -2,7 +2,7 @@ import json
 from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.dependencies import get_db, get_current_user, RoleRequired
 from app.models.user import User
