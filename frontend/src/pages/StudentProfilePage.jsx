@@ -131,6 +131,17 @@ export const StudentProfilePage = () => {
           const rawProfile = profileResult.value?.data || profileResult.value;
           const profileData = rawProfile?.student || rawProfile?.profile || rawProfile?.data?.student || rawProfile?.data?.profile || rawProfile?.data || rawProfile;
 
+          if (profileData && profileData !== rawProfile) {
+            const rootProj = rawProfile?.projects || rawProfile?.student_projects || rawProfile?.data?.projects || rawProfile?.data?.student_projects;
+            const rootCert = rawProfile?.certifications || rawProfile?.student_certifications || rawProfile?.credentials || rawProfile?.data?.certifications || rawProfile?.data?.student_certifications || rawProfile?.data?.credentials;
+            const rootAch = rawProfile?.achievements || rawProfile?.student_achievements || rawProfile?.honors || rawProfile?.data?.achievements || rawProfile?.data?.student_achievements || rawProfile?.data?.honors;
+            
+            if (rootProj && Array.isArray(rootProj)) profileData.projects = rootProj;
+            if (rootCert && Array.isArray(rootCert)) profileData.certifications = rootCert;
+            if (rootAch && Array.isArray(rootAch)) profileData.achievements = rootAch;
+          }
+
+
           if (!profileData || (!profileData.register_no && !profileData.registerNo)) {
             console.error("Profile data missing after normalization:", profileResult.value);
             throw new Error("Profile data could not be loaded");

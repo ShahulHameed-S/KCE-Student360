@@ -192,11 +192,12 @@ export const Sidebar = () => {
     },
     {
       name: "My Portfolio",
-      path: (user?.register_no || user?.registerNo || user?.username) ? `/portfolio/${user.register_no || user.registerNo || user.username}` : "/my-profile",
+      path: "/my-portfolio",
       action: "portfolio-customization",
       icon: BookOpen,
       roles: ["student"]
     }
+
   ];
 
   const userRole = user?.role || "student";

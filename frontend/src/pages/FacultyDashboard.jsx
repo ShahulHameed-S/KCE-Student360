@@ -3463,12 +3463,24 @@ export const FacultyDashboard = () => {
                 <h1 className="text-base font-extrabold uppercase tracking-wider text-[#214C55]">My Portfolio Customization</h1>
                 <p className="text-xs text-[#6B7280] font-semibold mt-0.5">Customize your public portfolio content and visibility.</p>
               </div>
-              <button 
-                onClick={() => navigate("/dashboard")}
-                className="px-4 py-2 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-xs font-bold uppercase tracking-wider transition-all"
-              >
-                Back to Dashboard
-              </button>
+              <div className="flex items-center space-x-2">
+                <a
+                  href={`/portfolio/${activeProfile.register_no || user?.register_no || user?.registerNo || user?.username || ""}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center space-x-1"
+                >
+                  <span>View Public Portfolio</span>
+                  <ExternalLink size={12} />
+                </a>
+                <button 
+                  onClick={() => navigate("/dashboard")}
+                  className="px-4 py-2 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white text-xs font-bold uppercase tracking-wider transition-all"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+
             </div>
 
             {customizationMessage && (
