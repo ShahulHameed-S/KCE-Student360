@@ -74,16 +74,15 @@ export const StudentProfilePage = () => {
           setAiSummary(null);
         } else {
           // 1. Fetch student details first
-          const profileData = await studentService.getStudentById(id);
+          const rawData = await studentService.getStudentById(id);
           
-          // 2. Resolve register number
-          const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student?.register_no ?? profileData?.student?.registerNo;
+          // 2. Normalize profile data shape (support data, data.student, data.profile)
+          const profileData = rawData?.student || rawData?.profile || rawData;
           
-          if (!registerNo) {
-            throw new Error("Student register number not resolved.");
-          }
+          // 3. Resolve register number
+          const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student_register_no ?? id;
 
-          // 3. Fetch performance & approvals safely using Promise.allSettled
+          // 4. Fetch performance & approvals safely using Promise.allSettled
           const [performanceResult, approvalsResult] = await Promise.allSettled([
             studentService.getStudentPerformance(registerNo),
             mentorService.getAllApprovals()
@@ -107,11 +106,13 @@ export const StudentProfilePage = () => {
       } catch (err) {
         console.error("Student detail fetch failure:", err);
         if (err.response?.status === 404) {
-          setError("Student not found");
+          setError("Student not found.");
         } else if (err.response?.status === 403) {
-          setError("You are not assigned to this student");
+          setError("You are not assigned to this student.");
+        } else if (err.code === "ERR_NETWORK" || !err.response) {
+          setError("Unable to connect to backend. Please retry.");
         } else {
-          setError("Failed to fetch student data records.");
+          setError("Unable to open this student profile. Register number is missing or student is not assigned.");
         }
       } finally {
         setLoading(false);

@@ -18,6 +18,72 @@ from app.schemas.student import StudentAboutSchema
 
 router = APIRouter()
 
+def resolve_student(db: Session, id_or_register_no: str) -> Optional[Student]:
+    """
+    Resolves a student record from register_no (case-insensitive),
+    numeric Student.id, or numeric Student.user_id.
+    """
+    if not id_or_register_no:
+        return None
+
+    clean = str(id_or_register_no).strip()
+    if not clean:
+        return None
+
+    from sqlalchemy import func
+    # 1. Primary lookup by register_no case-insensitive match
+    student = db.query(Student).filter(
+        func.lower(Student.register_no) == clean.lower()
+    ).first()
+    if student:
+        return student
+
+    # 2. Second lookup by numeric Student.id or Student.user_id if clean is purely digits
+    if clean.isdigit():
+        student = db.query(Student).filter(Student.id == int(clean)).first()
+        if student:
+            return student
+
+        student = db.query(Student).filter(Student.user_id == int(clean)).first()
+        if student:
+            return student
+
+    return None
+
+def check_student_profile_access(db: Session, current_user: User, student: Student):
+    """
+    Role-based access check:
+    - admin, faculty: full access
+    - mentor: allowed if assigned via mentor_assignments table
+    - student: allowed if viewing own profile
+    """
+    if current_user.role in ["admin", "faculty"]:
+        return
+
+    if current_user.role == "mentor":
+        from app.models.student import MentorAssignment
+        is_assigned = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+        if not is_assigned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not assigned to this student"
+            )
+        return
+
+    if current_user.role == "student":
+        is_self = (current_user.id == student.user_id) or (
+            current_user.username and current_user.username.lower() == student.register_no.lower()
+        )
+        if not is_self:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own student profile"
+            )
+        return
+
 DEFAULT_HEADLINE = "AI & DS Student | Java Full Stack Developer | Aspiring AI Engineer"
 DEFAULT_ABOUT_ME = (
     "I am Shahul, an Artificial Intelligence and Data Science student at Karpagam College of Engineering. "
@@ -248,18 +314,8 @@ async def get_student_by_id(
     Retrieves full profile details for a student.
     Accepts student ID (integer), user_id, or register_no.
     """
-    from sqlalchemy import func
-    from app.models.student import MentorAssignment
-    
-    # 1. Fetch student
-    student = None
-    if str(id_or_register_no).isdigit():
-        student = db.query(Student).filter(Student.id == int(id_or_register_no)).first()
-        if not student:
-            student = db.query(Student).filter(Student.user_id == int(id_or_register_no)).first()
-            
-    if not student:
-        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(str(id_or_register_no))).first()
+    # 1. Fetch student safely via resolve_student
+    student = resolve_student(db, id_or_register_no)
 
     if not student:
         raise HTTPException(
@@ -268,17 +324,7 @@ async def get_student_by_id(
         )
 
     # 2. Access control check
-    if current_user.role == "mentor":
-        is_assigned = db.query(MentorAssignment).filter(
-            MentorAssignment.mentor_id == current_user.id,
-            MentorAssignment.student_id == student.id
-        ).first()
-        
-        if not is_assigned:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not assigned to this student"
-            )
+    check_student_profile_access(db, current_user, student)
 
     # 2. Fetch related details
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
@@ -460,18 +506,8 @@ async def get_student_performance(
     current_user: User = Depends(get_current_user)
 ):
     """Retrieves detailed test history logs and analytics averages for a student."""
-    from sqlalchemy import func
-    from app.models.student import MentorAssignment
-    
-    # 1. Fetch student
-    student = None
-    if str(id_or_register_no).isdigit():
-        student = db.query(Student).filter(Student.id == int(id_or_register_no)).first()
-        if not student:
-            student = db.query(Student).filter(Student.user_id == int(id_or_register_no)).first()
-            
-    if not student:
-        student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(str(id_or_register_no))).first()
+    # 1. Fetch student safely via resolve_student
+    student = resolve_student(db, id_or_register_no)
 
     if not student:
         raise HTTPException(
@@ -480,17 +516,7 @@ async def get_student_performance(
         )
 
     # 2. Access control check
-    if current_user.role == "mentor":
-        is_assigned = db.query(MentorAssignment).filter(
-            MentorAssignment.mentor_id == current_user.id,
-            MentorAssignment.student_id == student.id
-        ).first()
-        
-        if not is_assigned:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You are not assigned to this student"
-            )
+    check_student_profile_access(db, current_user, student)
 
     analytics_obj = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == student.id).first()
     scores = db.query(AssessmentScore).filter(

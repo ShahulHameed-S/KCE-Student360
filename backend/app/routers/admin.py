@@ -1402,6 +1402,68 @@ async def admin_debug_mentor_assignments(
     }
 
 
+@router.get("/debug/mentor-student-access/{mentor_email}/{register_no}")
+async def admin_debug_mentor_student_access(
+    mentor_email: str,
+    register_no: str,
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to inspect mentor student access status and assignment row resolution."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    mentor_user = db.query(User).filter(func.lower(User.email) == func.lower(mentor_email.strip())).first()
+    if not mentor_user:
+        return {
+            "mentor_found": False,
+            "mentor_id": None,
+            "mentor_email": mentor_email,
+            "student_found": False,
+            "student_id": None,
+            "register_no": register_no,
+            "is_assigned": False,
+            "assignment_row_found": False,
+            "reason": "mentor not found"
+        }
+
+    clean_reg = str(register_no).strip()
+    student = db.query(Student).filter(func.lower(Student.register_no) == clean_reg.lower()).first()
+    if not student and clean_reg.isdigit():
+        student = db.query(Student).filter(Student.id == int(clean_reg)).first()
+
+    if not student:
+        return {
+            "mentor_found": True,
+            "mentor_id": mentor_user.id,
+            "mentor_email": mentor_user.email,
+            "student_found": False,
+            "student_id": None,
+            "register_no": register_no,
+            "is_assigned": False,
+            "assignment_row_found": False,
+            "reason": "student not found"
+        }
+
+    assignment = db.query(MentorAssignment).filter(
+        MentorAssignment.mentor_id == mentor_user.id,
+        MentorAssignment.student_id == student.id
+    ).first()
+
+    is_assigned = assignment is not None
+
+    return {
+        "mentor_found": True,
+        "mentor_id": mentor_user.id,
+        "mentor_email": mentor_user.email,
+        "student_found": True,
+        "student_id": student.id,
+        "register_no": student.register_no,
+        "is_assigned": is_assigned,
+        "assignment_row_found": is_assigned,
+        "reason": "assigned through mentor_assignments" if is_assigned else "assignment missing"
+    }
+
+
 @router.post("/upload/scores", response_model=UploadScoresResponse)
 @router.post("/scores/upload", response_model=UploadScoresResponse)
 async def admin_upload_scores(
