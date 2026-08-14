@@ -34,7 +34,11 @@ export const Navbar = ({ title }) => {
 
   const handleMyProfileClick = () => {
     setDropdownOpen(false);
-    navigate("/my-profile");
+    if (user?.role === "student") {
+      navigate("/students/me");
+    } else {
+      navigate("/my-profile");
+    }
   };
 
   const handleLogoutClick = () => {

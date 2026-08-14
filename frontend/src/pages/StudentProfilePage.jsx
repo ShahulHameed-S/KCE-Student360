@@ -57,19 +57,10 @@ export const StudentProfilePage = () => {
 
   const getProfileIdentifier = () => {
     const rawParam = params.id || params.idOrRegisterNo || params.registerNo;
-    if (rawParam && rawParam !== "undefined" && rawParam !== "null" && rawParam !== "me") {
+    if (rawParam && rawParam !== "undefined" && rawParam !== "null") {
       return rawParam;
     }
-    return (
-      user?.register_no ||
-      user?.registerNo ||
-      user?.username ||
-      user?.student?.register_no ||
-      user?.student?.registerNo ||
-      user?.studentId ||
-      user?.id ||
-      ""
-    );
+    return "me";
   };
 
   useEffect(() => {
@@ -138,18 +129,21 @@ export const StudentProfilePage = () => {
         }
       } catch (err) {
         console.error("Student detail fetch failure:", err);
+        const detailMsg = err.response?.data?.detail;
         if (err.response?.status === 404) {
-          setError("Student not found.");
+          setError(typeof detailMsg === "string" ? detailMsg : "Student not found.");
         } else if (err.response?.status === 403) {
-          if (user?.role === "student") {
-            setError("You can only view your own student profile.");
+          if (typeof detailMsg === "string" && detailMsg.trim().length > 0) {
+            setError(detailMsg);
+          } else if (user?.role === "student") {
+            setError("You can only access your own profile");
           } else {
-            setError("You are not assigned to this student.");
+            setError("You are not assigned to this student");
           }
         } else if (err.code === "ERR_NETWORK" || !err.response) {
           setError("Unable to connect to backend. Please retry.");
         } else {
-          setError("Unable to open this student profile. Register number is missing or student is not assigned.");
+          setError(typeof detailMsg === "string" ? detailMsg : "Unable to open this student profile.");
         }
       } finally {
         setLoading(false);

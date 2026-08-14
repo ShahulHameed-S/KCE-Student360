@@ -42,6 +42,7 @@ function App() {
               <Route path="my-achievements" element={<FacultyDashboard />} />
               <Route path="my-resume" element={<FacultyDashboard />} />
               <Route path="students" element={<StudentListPage />} />
+              <Route path="students/me" element={<StudentProfilePage />} />
               <Route path="students/:id" element={<StudentProfilePage />} />
               <Route path="student/:id" element={<StudentProfilePage />} />
               <Route path="leaderboard" element={<LeaderboardPage />} />

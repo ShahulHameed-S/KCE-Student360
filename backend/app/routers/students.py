@@ -89,7 +89,7 @@ def check_student_profile_access(db: Session, current_user: User, student: Stude
         if not is_self:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only view your own student profile"
+                detail="You can only access your own profile"
             )
         return
 
@@ -373,6 +373,39 @@ async def debug_student_by_id(
         "scores_count": scores_count,
         "analytics_exists": analytics_obj is not None
     }
+
+@router.get("/me")
+async def get_my_student_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieves full profile details for the active logged-in student."""
+    from sqlalchemy import func
+
+    student = None
+    # 1. Primary lookup by user_id
+    student = db.query(Student).filter(Student.user_id == current_user.id).first()
+
+    # 2. Lookup by username / register_no
+    if not student and current_user.username:
+        clean_u = current_user.username.strip().lower()
+        student = db.query(Student).filter(func.lower(Student.register_no) == clean_u).first()
+
+    # 3. Lookup by email
+    if not student and current_user.email:
+        clean_e = current_user.email.strip().lower()
+        student = db.query(Student).filter(func.lower(Student.email) == clean_e).first()
+        if not student:
+            reg_part = clean_e.split("@")[0]
+            student = db.query(Student).filter(func.lower(Student.register_no) == reg_part).first()
+
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student profile not found for active user account"
+        )
+
+    return await get_student_by_id(id_or_register_no=student.register_no, db=db, current_user=current_user)
 
 @router.get("/{id_or_register_no}")
 async def get_student_by_id(
