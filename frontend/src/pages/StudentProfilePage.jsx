@@ -38,8 +38,11 @@ import {
 import { mockStudents } from "../data/mockStudents";
 import { mockPerformance } from "../data/mockPerformance";
 
+import { useAuth } from "../hooks/useAuth";
+
 export const StudentProfilePage = () => {
-  const { id } = useParams();
+  const params = useParams();
+  const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [performance, setPerformance] = useState([]);
   const [approvals, setApprovals] = useState([]);
@@ -52,16 +55,40 @@ export const StudentProfilePage = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  const getProfileIdentifier = () => {
+    const rawParam = params.id || params.idOrRegisterNo || params.registerNo;
+    if (rawParam && rawParam !== "undefined" && rawParam !== "null" && rawParam !== "me") {
+      return rawParam;
+    }
+    return (
+      user?.register_no ||
+      user?.registerNo ||
+      user?.username ||
+      user?.student?.register_no ||
+      user?.student?.registerNo ||
+      user?.studentId ||
+      user?.id ||
+      ""
+    );
+  };
+
   useEffect(() => {
     const fetchProfileAndHistory = async () => {
       try {
         setLoading(true);
         setError("");
         
-        const isDemo = String(id).toLowerCase().startsWith("22ad");
+        const targetId = getProfileIdentifier();
+        if (!targetId) {
+          setError("Student register number missing.");
+          setLoading(false);
+          return;
+        }
+
+        const isDemo = String(targetId).toLowerCase().startsWith("22ad");
         
         if (isDemo) {
-          const profileData = mockStudents.find(s => s.id === String(id) || s.register_no?.toLowerCase() === String(id).toLowerCase());
+          const profileData = mockStudents.find(s => s.id === String(targetId) || s.register_no?.toLowerCase() === String(targetId).toLowerCase());
           if (!profileData) {
             throw { response: { status: 404 } };
           }
@@ -73,14 +100,18 @@ export const StudentProfilePage = () => {
           setApprovals([]);
           setAiSummary(null);
         } else {
+          if (!import.meta.env.PROD) {
+            console.log("Opening student profile for:", targetId);
+          }
+
           // 1. Fetch student details first
-          const rawData = await studentService.getStudentById(id);
+          const rawData = await studentService.getStudentById(targetId);
           
-          // 2. Normalize profile data shape (support data, data.student, data.profile)
-          const profileData = rawData?.student || rawData?.profile || rawData;
+          // 2. Normalize profile data shape (support data, data.student, data.profile, data.data)
+          const profileData = rawData?.student || rawData?.profile || rawData?.data?.student || rawData?.data?.profile || rawData?.data || rawData;
           
           // 3. Resolve register number
-          const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student_register_no ?? id;
+          const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student_register_no ?? targetId;
 
           // 4. Fetch performance & approvals safely using Promise.allSettled
           const [performanceResult, approvalsResult] = await Promise.allSettled([
@@ -95,8 +126,10 @@ export const StudentProfilePage = () => {
             ? approvalsResult.value
             : [];
 
-          console.log("Student detail data:", profileData);
-          console.log("Student performance data:", performanceData);
+          if (!import.meta.env.PROD) {
+            console.log("Student detail data:", profileData);
+            console.log("Student performance data:", performanceData);
+          }
 
           setStudent(profileData);
           setPerformance(performanceData);
@@ -108,7 +141,11 @@ export const StudentProfilePage = () => {
         if (err.response?.status === 404) {
           setError("Student not found.");
         } else if (err.response?.status === 403) {
-          setError("You are not assigned to this student.");
+          if (user?.role === "student") {
+            setError("You can only view your own student profile.");
+          } else {
+            setError("You are not assigned to this student.");
+          }
         } else if (err.code === "ERR_NETWORK" || !err.response) {
           setError("Unable to connect to backend. Please retry.");
         } else {
@@ -120,7 +157,7 @@ export const StudentProfilePage = () => {
     };
 
     fetchProfileAndHistory();
-  }, [id]);
+  }, [params.id, params.idOrRegisterNo, params.registerNo, user]);
 
   const handleGenerateAiSummary = async () => {
     if (!student) return;

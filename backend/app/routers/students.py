@@ -74,8 +74,17 @@ def check_student_profile_access(db: Session, current_user: User, student: Stude
         return
 
     if current_user.role == "student":
-        is_self = (current_user.id == student.user_id) or (
-            current_user.username and current_user.username.lower() == student.register_no.lower()
+        u_username = (current_user.username or "").strip().lower()
+        u_email = (current_user.email or "").strip().lower()
+        s_reg = (student.register_no or "").strip().lower()
+        s_email = (student.email or "").strip().lower()
+
+        is_self = (
+            (current_user.id == student.user_id) or
+            (u_username and u_username == s_reg) or
+            (u_email and u_email == s_email) or
+            (u_email and u_email.startswith(s_reg)) or
+            (u_username and u_username.startswith(s_reg))
         )
         if not is_self:
             raise HTTPException(
@@ -193,6 +202,67 @@ async def recommend_students(
 ):
     """Retrieves student recommendations ranked by domain score."""
     return get_student_recommendations(db, domain, limit)
+
+@router.get("/debug/profile-access/{register_no}")
+async def debug_student_profile_access(
+    register_no: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Debug endpoint to verify profile access permissions for current logged in user."""
+    from sqlalchemy import func
+    from app.models.student import MentorAssignment
+
+    student = resolve_student(db, register_no)
+    if not student:
+        return {
+            "current_user_email": current_user.email,
+            "current_user_role": current_user.role,
+            "register_no_requested": register_no,
+            "student_found": False,
+            "access_allowed": False,
+            "reason": "student not found"
+        }
+
+    access_allowed = False
+    reason = "access denied"
+    is_own_student = False
+    mentor_assignment_found = False
+
+    if current_user.role in ["admin", "faculty"]:
+        access_allowed = True
+        reason = f"{current_user.role} accessing student profile"
+    elif current_user.role == "student":
+        is_own_student = (
+            (current_user.id == student.user_id) or
+            (current_user.username and current_user.username.strip().lower() == student.register_no.strip().lower()) or
+            (current_user.email and current_user.email.strip().lower() == student.email.strip().lower()) or
+            (current_user.email and current_user.email.strip().lower() == student.register_no.strip().lower())
+        )
+        access_allowed = is_own_student
+        reason = "student accessing own profile" if is_own_student else "student attempting to access another student profile"
+    elif current_user.role == "mentor":
+        assign = db.query(MentorAssignment).filter(
+            MentorAssignment.mentor_id == current_user.id,
+            MentorAssignment.student_id == student.id
+        ).first()
+        mentor_assignment_found = assign is not None
+        access_allowed = mentor_assignment_found
+        reason = "mentor assigned through mentor_assignments" if mentor_assignment_found else "mentor not assigned to student"
+
+    return {
+        "current_user_email": current_user.email,
+        "current_user_role": current_user.role,
+        "register_no_requested": register_no,
+        "student_found": True,
+        "student_id": student.id,
+        "student_user_id": student.user_id,
+        "current_user_id": current_user.id,
+        "is_own_student": is_own_student,
+        "mentor_assignment_found": mentor_assignment_found,
+        "access_allowed": access_allowed,
+        "reason": reason
+    }
 
 @router.get("/debug/{id_or_register_no}")
 async def debug_student_by_id(
