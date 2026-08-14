@@ -112,16 +112,39 @@ export const PortfolioPage = () => {
 
   const [resumePreviewOpen, setResumePreviewOpen] = useState(false);
 
-  const handleViewResume = () => {
+  const handleViewResume = async () => {
     const resumeUrl = getResumeUrl(portfolio);
 
     if (resumeUrl) {
+      // Check if it's a local backend uploads path
+      const isLocalPath = resumeUrl.includes("/uploads/resumes/") || resumeUrl.includes("/uploads/");
+      if (isLocalPath) {
+        try {
+          const response = await fetch(resumeUrl, { method: "HEAD" });
+          if (response.status === 404) {
+            alert("Resume file is not available. Please upload your resume again.");
+            return;
+          }
+        } catch (error) {
+          // Fallback check if HEAD is blocked
+          try {
+            const getResponse = await fetch(resumeUrl, { method: "GET" });
+            if (getResponse.status === 404) {
+              alert("Resume file is not available. Please upload your resume again.");
+              return;
+            }
+          } catch (e) {
+            // Let it attempt to open if CORS block prevents checking
+          }
+        }
+      }
       window.open(resumeUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
-    setResumePreviewOpen(true);
+    alert("Resume not uploaded yet.");
   };
+
 
   const handleUploadResumeClick = (e) => {
     e.preventDefault();

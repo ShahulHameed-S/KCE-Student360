@@ -97,8 +97,9 @@ async def save_upload_file(file: UploadFile, folder: str, user_id: int = None) -
         
         public_url = client.storage.from_(bucket).get_public_url(path_in_bucket)
         if public_url:
-            print(f"[STORAGE_SUCCESS] Uploaded to Supabase Storage: {public_url}")
-            return public_url, bucket, path_in_bucket
+          print(f"[STORAGE_SUCCESS] Uploaded to Supabase Storage: {public_url}")
+          return public_url
+
     except Exception as e:
         print(f"[STORAGE_ERROR] Supabase Storage upload failed: {e}")
         raise HTTPException(

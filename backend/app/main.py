@@ -92,3 +92,9 @@ app.include_router(profile.router, prefix="/users", tags=["User Profiles"])
 app.include_router(portfolio.router, prefix="/portfolio", tags=["Public Portfolios"])
 app.include_router(ai.router, prefix="/ai", tags=["AI Analytics"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin Portal"])
+
+# Mount static uploads directory if available
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
