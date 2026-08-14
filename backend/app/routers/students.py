@@ -10,7 +10,7 @@ from app.models.student import Student
 from app.models.score import AssessmentScore, StudentAnalytics
 from app.models.submission import StudentProject, StudentCertification, StudentAchievement
 from app.models.resume import Resume
-from app.models.profile import StudentAbout
+from app.models.profile import StudentAbout, UserProfile
 from app.models.portfolio import PortfolioCustomization
 from app.services.recommendation_service import get_student_recommendations
 from app.utils.response_utils import error_response
@@ -117,12 +117,15 @@ DEFAULT_SKILLS = [
 
 def resolve_student_profile_image(student: Student, db: Session):
     """Resolves profile image priority: Student.profile_image -> UserProfile.profile_image -> ''"""
-    if student.profile_image and student.profile_image.strip():
-        return student.profile_image, "students.profile_image"
-    if student.user_id:
-        user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
-        if user_prof and user_prof.profile_image and user_prof.profile_image.strip():
-            return user_prof.profile_image, "user_profiles.profile_image"
+    try:
+        if student.profile_image and student.profile_image.strip():
+            return student.profile_image, "students.profile_image"
+        if student.user_id:
+            user_prof = db.query(UserProfile).filter(UserProfile.user_id == student.user_id).first()
+            if user_prof and user_prof.profile_image and user_prof.profile_image.strip():
+                return user_prof.profile_image, "user_profiles.profile_image"
+    except Exception:
+        pass
     return "", "default_fallback"
 
 def serialize_student_flat(student: Student, db: Session) -> dict:

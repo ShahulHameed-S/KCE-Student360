@@ -10,10 +10,17 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "student360-uploads")
 
 
-if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
-    supabase = None
-else:
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+def get_supabase_client():
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not url or not key:
+        raise HTTPException(
+            status_code=500,
+            detail="Supabase storage is not configured"
+        )
+
+    return create_client(url, key)
 
 
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "webp"}
@@ -32,11 +39,7 @@ async def upload_file_to_supabase(
     folder: str,
     max_size_mb: int = 10
 ) -> Dict[str, str]:
-    if supabase is None:
-        raise HTTPException(
-            status_code=500,
-            detail="Supabase storage is not configured"
-        )
+    supabase = get_supabase_client()
 
     extension = get_file_extension(file.filename)
 

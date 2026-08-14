@@ -176,7 +176,7 @@ export const StudentProfilePage = () => {
       <div className="bg-red-50 border border-red-200 text-[#B91C1C] px-6 py-4 rounded-none max-w-lg mx-auto text-center mt-12 shadow-none font-bold">
         <h3 className="font-bold text-base uppercase">Unable to open student profile</h3>
         <p className="text-xs mt-1 font-semibold">
-          Unable to open this student profile. Register number is missing or student is not assigned.
+          {error || "Unable to open this student profile. Register number is missing or student is not assigned."}
         </p>
         <Link to="/students" className="mt-4 inline-flex items-center space-x-1.5 text-xs font-bold text-[#C76F2B] hover:underline uppercase tracking-wider">
           <ArrowLeft size={16} />
