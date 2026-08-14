@@ -165,12 +165,12 @@ export const StudentListPage = () => {
       label: "Actions",
       className: "text-center",
       render: (row) => {
-        const regNo = row.register_no || row.registerNo;
+        const regNo = row.register_no || row.registerNo || row.student_register_no || "";
         const extUrl = row.external_portfolio_url;
         return (
           <div className="flex items-center justify-center space-x-2">
             <Link
-              to={`/students/${regNo || row.id}`}
+              to={`/students/${encodeURIComponent(regNo)}`}
               className="text-xs font-bold text-[#214C55] hover:text-white bg-[#F7F7F7] hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1.5 transition-all shadow-none"
             >
               <UserSquare2 size={13} />

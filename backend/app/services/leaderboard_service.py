@@ -115,6 +115,7 @@ def get_leaderboard_data(db: Session, domain: str = "Overall", current_user: Use
             "has_score": has_scores,
             "data": {
                 "id": student.id,
+                "student_id": student.id,
                 "user_id": student.user_id,
                 "register_no": student.register_no,
                 "registerNo": student.register_no,

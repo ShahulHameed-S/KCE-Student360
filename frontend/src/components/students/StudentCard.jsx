@@ -66,7 +66,7 @@ export const StudentCard = ({ student }) => {
       </div>
 
       <Link
-        to={`/students/${student.register_no || student.registerNo || student.id}`}
+        to={`/students/${encodeURIComponent(student.register_no || student.registerNo || "")}`}
         className="w-full py-2 bg-white border border-[#214C55] text-[#214C55] hover:bg-[#214C55] hover:text-white rounded-none text-xs font-bold transition-all flex items-center justify-center space-x-1"
       >
         <span>View Insights</span>

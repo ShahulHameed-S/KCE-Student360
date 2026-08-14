@@ -191,10 +191,50 @@ export const LeaderboardPage = () => {
     return { sortedStudents: sorted, podiumStudents: podium, remainingStudents: remaining };
   }, [selectedDomain, leaderboardData]);
 
+  const getStudentRegisterNo = (student) => {
+    return (
+      student?.register_no ||
+      student?.registerNo ||
+      student?.student_register_no ||
+      student?.student?.register_no ||
+      student?.student?.registerNo ||
+      ""
+    );
+  };
+
   const handleStudentClick = (student) => {
-    const regNo = student?.register_no || student?.registerNo || student?.id;
-    if (regNo) {
-      navigate(`/students/${regNo}`);
+    const registerNo = getStudentRegisterNo(student);
+    if (!registerNo) {
+      console.error("Missing register number for leaderboard student:", student);
+      setError("Student register number missing. Cannot open profile.");
+      return;
+    }
+    navigate(`/students/${encodeURIComponent(registerNo)}`);
+  };
+
+  const handleProfileClick = (e, student) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const registerNo = getStudentRegisterNo(student);
+    if (!registerNo) {
+      console.error("Missing register number for leaderboard student:", student);
+      setError("Student register number missing. Cannot open profile.");
+      return;
+    }
+    navigate(`/students/${encodeURIComponent(registerNo)}`);
+  };
+
+  const handlePortfolioClick = (e, student) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const registerNo = getStudentRegisterNo(student);
+    if (!registerNo) {
+      console.error("Missing register number for leaderboard student:", student);
+      setError("Student register number missing. Cannot open portfolio.");
+      return;
+    }
+    if (student?.external_portfolio_url) {
+      window.open(student.external_portfolio_url, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(`/portfolio/${encodeURIComponent(registerNo)}`);
     }
   };
 
@@ -335,7 +375,7 @@ export const LeaderboardPage = () => {
                           >
                             {student.name}
                           </h4>
-                          <p className="text-[9px] text-[#6B7280] font-bold uppercase">{student.register_no}</p>
+                          <p className="text-[9px] text-[#6B7280] font-bold uppercase">{getStudentRegisterNo(student)}</p>
                         </div>
 
                         <div className="flex flex-col items-center space-y-1 pt-1">
@@ -344,6 +384,26 @@ export const LeaderboardPage = () => {
                           <span className="text-[9px] font-black uppercase text-[#C76F2B] mt-1 bg-orange-50 px-2 py-0.5 border border-orange-200">
                             {rankTitles[student.rank]}
                           </span>
+                        </div>
+
+                        {/* Profile & Portfolio Buttons for Top Rankers */}
+                        <div className="flex items-center justify-center space-x-1.5 pt-2 border-t border-[#E5E5E5] w-full">
+                          <button
+                            type="button"
+                            onClick={(e) => handleProfileClick(e, student)}
+                            className="text-[10px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2 py-0.5 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                          >
+                            <UserSquare2 size={11} />
+                            <span>Profile</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handlePortfolioClick(e, student)}
+                            className="text-[10px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2 py-0.5 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                          >
+                            <span>Portfolio</span>
+                            <ExternalLink size={11} />
+                          </button>
                         </div>
                       </div>
 
@@ -452,33 +512,22 @@ export const LeaderboardPage = () => {
                           </td>
                         <td className="px-6 py-3 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center space-x-2">
-                            <Link
-                              to={`/students/${student.register_no || student.registerNo || student.id}`}
-                              className="text-[11px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
+                            <button
+                              type="button"
+                              onClick={(e) => handleProfileClick(e, student)}
+                              className="text-[11px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
                             >
                               <UserSquare2 size={12} />
                               <span>Profile</span>
-                            </Link>
-                            {student.external_portfolio_url ? (
-                              <a
-                                href={student.external_portfolio_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Open Student's External Personal Portfolio"
-                                className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
-                              >
-                                <span>Portfolio</span>
-                                <ExternalLink size={12} />
-                              </a>
-                            ) : (
-                              <Link
-                                to={`/portfolio/${student.register_no || student.registerNo}`}
-                                className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none"
-                              >
-                                <span>Portfolio</span>
-                                <ExternalLink size={12} />
-                              </Link>
-                            )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handlePortfolioClick(e, student)}
+                              className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                            >
+                              <span>Portfolio</span>
+                              <ExternalLink size={12} />
+                            </button>
                           </div>
                         </td>
                           </tr>
