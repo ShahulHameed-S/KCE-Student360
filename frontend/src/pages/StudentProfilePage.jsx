@@ -57,7 +57,7 @@ export const StudentProfilePage = () => {
 
   const getProfileIdentifier = () => {
     const rawParam = params.id || params.idOrRegisterNo || params.registerNo;
-    if (rawParam && rawParam !== "undefined" && rawParam !== "null") {
+    if (rawParam && rawParam !== "undefined" && rawParam !== "null" && rawParam !== "[object Object]") {
       return rawParam;
     }
     return "me";
@@ -95,31 +95,65 @@ export const StudentProfilePage = () => {
             console.log("Opening student profile for:", targetId);
           }
 
-          // 1. Fetch student details first
-          const rawData = await studentService.getStudentById(targetId);
-          
+          // 1. Simultaneously fetch student profile, performance, and approvals (if cached or using targetId)
+          const profilePromise = studentService.getStudentProfile(targetId);
+          const performancePromise = studentService.getStudentPerformance(targetId);
+          const approvalsPromise = studentService.getStudentApprovals(targetId);
+
+          const [profileResult, performanceResult, approvalsResult] = await Promise.allSettled([
+            profilePromise,
+            performancePromise,
+            approvalsPromise
+          ]);
+
+          // Profile API is the only critical requirement
+          if (profileResult.status !== "fulfilled") {
+            throw profileResult.reason;
+          }
+
           // 2. Normalize profile data shape (support data, data.student, data.profile, data.data)
-          const profileData = rawData?.student || rawData?.profile || rawData?.data?.student || rawData?.data?.profile || rawData?.data || rawData;
-          
+          const rawProfile = profileResult.value?.data || profileResult.value;
+          const profileData = rawProfile?.student || rawProfile?.profile || rawProfile?.data?.student || rawProfile?.data?.profile || rawProfile?.data || rawProfile;
+
+          if (!profileData || (!profileData.register_no && !profileData.registerNo)) {
+            console.error("Profile data missing after normalization:", profileResult.value);
+            throw new Error("Profile data could not be loaded");
+          }
+
           // 3. Resolve register number
           const registerNo = profileData?.register_no ?? profileData?.registerNo ?? profileData?.student_register_no ?? targetId;
 
-          // 4. Fetch performance & approvals safely using Promise.allSettled
-          const [performanceResult, approvalsResult] = await Promise.allSettled([
-            studentService.getStudentPerformance(registerNo),
-            mentorService.getAllApprovals()
-          ]);
-
-          const performanceData = performanceResult.status === "fulfilled" && performanceResult.value
-            ? performanceResult.value
-            : (mockPerformance[registerNo] || []);
-          const approvalsData = approvalsResult.status === "fulfilled" && approvalsResult.value
-            ? approvalsResult.value
-            : [];
-
           if (!import.meta.env.PROD) {
-            console.log("Student detail data:", profileData);
-            console.log("Student performance data:", performanceData);
+            console.log("StudentProfile identifier:", targetId);
+            console.log("StudentProfile raw profile response:", profileResult.value);
+            console.log("StudentProfile normalized profile:", profileData);
+          }
+
+          // 4. Handle performance result with lazy retry using register_no if targetId was "me"
+          let performanceData = null;
+          if (performanceResult.status === "fulfilled") {
+            performanceData = performanceResult.value?.data || performanceResult.value;
+          } else {
+            if (registerNo && registerNo !== "me") {
+              try {
+                const retryPerf = await studentService.getStudentPerformance(registerNo);
+                performanceData = retryPerf?.data || retryPerf;
+              } catch (retryErr) {
+                console.warn("Re-fetching performance failed:", retryErr);
+              }
+            }
+            if (!performanceData) {
+              performanceData = mockPerformance[registerNo] || [];
+            }
+          }
+
+          // 5. Handle approvals result
+          let approvalsData = [];
+          if (approvalsResult.status === "fulfilled") {
+            const rawApp = approvalsResult.value?.data || approvalsResult.value;
+            approvalsData = Array.isArray(rawApp) ? rawApp : (rawApp?.data || []);
+          } else {
+            approvalsData = [];
           }
 
           setStudent(profileData);
@@ -130,21 +164,32 @@ export const StudentProfilePage = () => {
       } catch (err) {
         console.error("Student detail fetch failure:", err);
         const detailMsg = err.response?.data?.detail;
+        let errorMsg = "";
+        
         if (err.response?.status === 404) {
-          setError(typeof detailMsg === "string" ? detailMsg : "Student not found.");
+          errorMsg = typeof detailMsg === "string" ? detailMsg : "Student not found.";
         } else if (err.response?.status === 403) {
           if (typeof detailMsg === "string" && detailMsg.trim().length > 0) {
-            setError(detailMsg);
+            errorMsg = detailMsg;
           } else if (user?.role === "student") {
-            setError("You can only access your own profile");
+            errorMsg = "You can only access your own profile";
           } else {
-            setError("You are not assigned to this student");
+            errorMsg = "You are not assigned to this student";
           }
         } else if (err.code === "ERR_NETWORK" || !err.response) {
-          setError("Unable to connect to backend. Please retry.");
+          errorMsg = "Unable to connect to backend. Please retry.";
         } else {
-          setError(typeof detailMsg === "string" ? detailMsg : "Unable to open this student profile.");
+          if (typeof detailMsg === "string") {
+            errorMsg = detailMsg;
+          } else if (detailMsg && typeof detailMsg === "object") {
+            errorMsg = detailMsg.message || JSON.stringify(detailMsg);
+          } else if (err.message) {
+            errorMsg = err.message;
+          } else {
+            errorMsg = "Unable to open this student profile.";
+          }
         }
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -196,7 +241,7 @@ export const StudentProfilePage = () => {
   const barColors = ["#214C55", "#C76F2B", "#214C55", "#C76F2B", "#214C55", "#C76F2B", "#214C55"];
 
   const getItemApproval = (title) => {
-    if (!student || !approvals) return { status: "Approved" };
+    if (!student || !Array.isArray(approvals)) return { status: "Approved" };
     const match = approvals.find(
       (app) =>
         app.register_no === student.register_no &&
