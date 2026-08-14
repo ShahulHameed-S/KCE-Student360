@@ -144,6 +144,12 @@ export const Sidebar = () => {
       roles: ["student"]
     },
     {
+      name: "My Profile",
+      path: "/my-profile",
+      icon: User,
+      roles: ["student"]
+    },
+    {
       name: "Leaderboard",
       path: "/leaderboard",
       icon: Trophy,
@@ -186,7 +192,7 @@ export const Sidebar = () => {
     },
     {
       name: "My Portfolio",
-      path: "/my-portfolio",
+      path: (user?.register_no || user?.registerNo || user?.username) ? `/portfolio/${user.register_no || user.registerNo || user.username}` : "/my-profile",
       action: "portfolio-customization",
       icon: BookOpen,
       roles: ["student"]

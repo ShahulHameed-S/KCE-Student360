@@ -35,7 +35,7 @@ export const Navbar = ({ title }) => {
   const handleMyProfileClick = () => {
     setDropdownOpen(false);
     if (user?.role === "student") {
-      navigate("/students/me");
+      navigate("/my-profile");
     } else {
       navigate("/my-profile");
     }

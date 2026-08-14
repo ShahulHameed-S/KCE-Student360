@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import FacultyDashboard from "./pages/FacultyDashboard";
 import StudentListPage from "./pages/StudentListPage";
 import StudentProfilePage from "./pages/StudentProfilePage";
+import StudentMyProfilePage from "./pages/StudentMyProfilePage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import RecommendationPage from "./pages/RecommendationPage";
 import ScoreUploadPage from "./pages/ScoreUploadPage";
@@ -34,7 +35,7 @@ function App() {
               
               {/* Pages inside layout */}
               <Route path="dashboard" element={<FacultyDashboard />} />
-              <Route path="my-profile" element={<FacultyDashboard />} />
+              <Route path="my-profile" element={<StudentMyProfilePage />} />
               <Route path="my-performance" element={<FacultyDashboard />} />
               <Route path="my-portfolio" element={<FacultyDashboard />} />
               <Route path="my-projects" element={<FacultyDashboard />} />

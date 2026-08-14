@@ -76,6 +76,22 @@ export const StudentProfilePage = () => {
           return;
         }
 
+        // Student Role Guard checks
+        if (user?.role === "student") {
+          const isOwn = (targetId === "me" || 
+                         targetId?.toLowerCase() === user?.register_no?.toLowerCase() ||
+                         targetId?.toLowerCase() === user?.registerNo?.toLowerCase() ||
+                         targetId?.toLowerCase() === user?.username?.toLowerCase());
+          if (isOwn) {
+            navigate("/my-profile", { replace: true });
+            return;
+          } else {
+            setError("You can only access your own profile");
+            setLoading(false);
+            return;
+          }
+        }
+
         const isDemo = String(targetId).toLowerCase().startsWith("22ad");
         
         if (isDemo) {
@@ -392,6 +408,190 @@ export const StudentProfilePage = () => {
 
   // Mock AI summary
   const mockAiText = `AI Insights: ${student?.name} possesses superior competency in ${student?.strongest_domain} with an overall mastery score of ${pScores[student?.strongest_domain]}%. To maximize placements potential, intensive preparation is recommended in ${student?.weakest_domain} (${pScores[student?.weakest_domain]}%). Target timeline: 4 weeks of structured daily practice covering theoretical foundations and mock papers.`;
+
+  const isOwnStudentProfile = user?.role === "student" && targetId === "me";
+
+  if (isOwnStudentProfile) {
+    return (
+      <div className="space-y-6 animate-fade-in text-[#111827]">
+        {/* Header Title with KCE Branded style */}
+        <div className="border-b border-[#D1D5DB] pb-4 flex justify-between items-center bg-white p-6 shadow-sm border-t-4 border-t-[#214C55]">
+          <div className="text-left">
+            <h1 className="text-xl font-extrabold text-[#214C55] uppercase tracking-wider">My Profile</h1>
+            <p className="text-xs text-[#6B7280] font-semibold mt-1">Manage your academic profile, view credentials, and track your placement readiness.</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[10px] font-extrabold text-white uppercase tracking-widest px-3 py-1 bg-[#C76F2B]">
+              STUDENT PROFILE
+            </span>
+          </div>
+        </div>
+
+        {/* Main Grid: Left Profile Card & Right Academic Overview */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 1. Profile card */}
+          <div className="bg-white rounded-none border border-[#D1D5DB] border-t-4 border-t-[#C76F2B] shadow-sm flex flex-col justify-between p-6">
+            <div className="text-center space-y-4">
+              {getStudentImageUrl(student) ? (
+                <img
+                  src={getStudentImageUrl(student)}
+                  alt={student?.name || "Student"}
+                  className="w-24 h-24 rounded-none object-cover border border-[#D1D5DB] mx-auto"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                    const fallback = e.target.parentElement?.querySelector('.avatar-profile-fallback');
+                    if (fallback) fallback.style.display = "flex";
+                  }}
+                />
+              ) : null}
+              <div className={`avatar-profile-fallback w-24 h-24 rounded-none bg-[#F7F7F7] border border-[#D1D5DB] text-[#214C55] mx-auto text-3xl font-black shadow-none items-center justify-center ${getStudentImageUrl(student) ? "hidden" : "flex"}`}>
+                {(student?.name || "U").charAt(0)}
+              </div>
+              
+              <div>
+                <h2 className="text-lg font-extrabold text-[#214C55] uppercase tracking-wider">{student?.name || "N/A"}</h2>
+                <p className="text-xs text-[#6B7280] font-bold mt-0.5">{student?.register_no || student?.registerNo || "N/A"}</p>
+              </div>
+
+              <div className="pt-4 border-t border-[#E5E5E5] grid grid-cols-2 gap-4 text-left text-xs font-bold text-[#6B7280]">
+                <div>
+                  <span className="block text-[9px] text-[#6B7280] uppercase tracking-wider font-extrabold">Department</span>
+                  <span className="text-[#214C55] font-extrabold block mt-0.5">{student?.department || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="block text-[9px] text-[#6B7280] uppercase tracking-wider font-extrabold">Class</span>
+                  <span className="text-[#214C55] font-extrabold block mt-0.5">
+                    {student?.year || student?.section ? `Year ${student?.year || "N/A"} - ${student?.section || "N/A"}` : "N/A"}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[9px] text-[#6B7280] uppercase tracking-wider font-extrabold">Batch</span>
+                  <span className="text-[#214C55] font-extrabold block mt-0.5">{student?.batch || "N/A"}</span>
+                </div>
+                <div>
+                  <span className="block text-[9px] text-[#6B7280] uppercase tracking-wider font-extrabold">CGPA</span>
+                  <span className="text-[#214C55] font-extrabold block mt-0.5">{student?.cgpa || "N/A"}</span>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-[#F3F4F6]">
+                  <span className="block text-[9px] text-[#6B7280] uppercase tracking-wider font-extrabold">Email Address</span>
+                  <span className="text-[#214C55] font-extrabold block mt-0.5 lowercase">{student?.email || "N/A"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Academic Overview */}
+          <div className="lg:col-span-2 bg-white p-6 border border-[#D1D5DB] border-t-4 border-t-[#214C55] shadow-sm flex flex-col justify-between">
+            <div>
+              <div className="border-b border-[#E5E5E5] pb-3 mb-4 text-left">
+                <h3 className="text-sm font-extrabold text-[#214C55] uppercase tracking-wider">Academic Overview</h3>
+                <p className="text-xs text-[#6B7280] font-semibold">Summary of your overall performance and recruitment readiness.</p>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-[#F9FAFB] p-4 border border-[#E5E5E5] text-left">
+                  <span className="block text-[9px] font-black text-[#6B7280] uppercase tracking-wider">Overall Score</span>
+                  <div className="text-2xl font-black text-[#214C55] mt-1">
+                    <ScoreBadge score={student?.overall_score} />
+                  </div>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 border border-[#E5E5E5] text-left">
+                  <span className="block text-[9px] font-black text-[#6B7280] uppercase tracking-wider">Strongest Domain</span>
+                  <div className="text-xs font-extrabold mt-2 text-emerald-700 uppercase">
+                    <DomainBadge domain={student?.strongest_domain} />
+                  </div>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 border border-[#E5E5E5] text-left">
+                  <span className="block text-[9px] font-black text-[#6B7280] uppercase tracking-wider">Weakest Domain</span>
+                  <div className="text-xs font-extrabold mt-2 text-amber-700 uppercase">
+                    <DomainBadge domain={student?.weakest_domain} />
+                  </div>
+                </div>
+                <div className="bg-[#F9FAFB] p-4 border border-[#E5E5E5] text-left">
+                  <span className="block text-[9px] font-black text-[#6B7280] uppercase tracking-wider">Placement Status</span>
+                  <span className={`inline-block mt-2 px-2 py-0.5 text-[8px] font-extrabold uppercase border ${readinessColor}`}>
+                    {readinessStatus}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Action Navigation Grid */}
+            <div className="border-t border-[#E5E5E5] pt-4 text-left">
+              <h4 className="text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider mb-3">Quick Actions</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <a
+                  href={`/portfolio/${student.register_no}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white bg-[#C76F2B] hover:bg-[#A8561F] transition-all text-center flex items-center justify-center space-x-1"
+                >
+                  <span>View My Portfolio</span>
+                  <ExternalLink size={11} />
+                </a>
+                <Link
+                  to="/my-portfolio"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#214C55] bg-white border border-[#214C55] hover:bg-[#214C55] hover:text-white transition-all text-center flex items-center justify-center"
+                >
+                  Edit Portfolio
+                </Link>
+                <Link
+                  to="/my-resume"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#214C55] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-all text-center flex items-center justify-center"
+                >
+                  My Resume
+                </Link>
+                <Link
+                  to="/my-projects"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#214C55] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-all text-center flex items-center justify-center"
+                >
+                  My Projects
+                </Link>
+                <Link
+                  to="/my-certifications"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#214C55] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-all text-center flex items-center justify-center"
+                >
+                  My Certificates
+                </Link>
+                <Link
+                  to="/my-achievements"
+                  className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#214C55] bg-[#F3F4F6] hover:bg-[#E5E7EB] transition-all text-center flex items-center justify-center"
+                >
+                  My Achievements
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Domain Performance breakdown list */}
+        <div className="bg-white p-6 border border-[#D1D5DB] border-t-4 border-t-[#214C55] shadow-sm space-y-4">
+          <div className="border-b border-[#E5E5E5] pb-3 text-left">
+            <h3 className="text-xs font-black text-[#214C55] uppercase tracking-wider">Domain Performance</h3>
+            <p className="text-[10px] text-[#6B7280] font-semibold">Your competency level in key technical and academic areas.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Object.entries(pScores).map(([name, score]) => {
+              const barColor = score >= 90 ? "bg-[#214C55]" : score >= 80 ? "bg-[#C76F2B]" : "bg-slate-500";
+              const level = score >= 90 ? "Outstanding" : score >= 80 ? "Excellent" : score >= 70 ? "Very Good" : "Good";
+              return (
+                <div key={name} className="p-4 bg-[#F9FAFB] border border-[#E5E5E5] space-y-2 text-left">
+                  <div className="flex justify-between text-xs font-bold text-slate-700">
+                    <span>{name}</span>
+                    <span className="text-[#214C55] font-black">{score}%</span>
+                  </div>
+                  <div className="w-full bg-[#E5E5E5] h-2 rounded-none overflow-hidden">
+                    <div className={`h-full ${barColor}`} style={{ width: `${score}%` }}></div>
+                  </div>
+                  <div className="text-[9px] text-[#6B7280] font-extrabold uppercase">{level} Level</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in text-[#111827]">
