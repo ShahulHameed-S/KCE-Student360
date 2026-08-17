@@ -19,44 +19,29 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
     if not email_provider:
         email_provider = getattr(settings, "EMAIL_PROVIDER", None)
         
+    if email_provider:
+        email_provider = email_provider.lower().strip()
+    else:
+        email_provider = "resend"
+        
     resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
     
-    if not email_provider:
-        if resend_key:
-            email_provider = "resend"
-        else:
-            email_provider = "smtp"
-            
-    email_provider = email_provider.lower().strip()
-    
     # 2. Resend API Flow
-    if email_provider == "resend":
+    if email_provider != "smtp":
         from_email = os.environ.get("RESEND_FROM_EMAIL") or getattr(settings, "RESEND_FROM_EMAIL", "onboarding@resend.dev")
         from_name = os.environ.get("RESEND_FROM_NAME") or getattr(settings, "RESEND_FROM_NAME", "Student360")
         
-        # Diagnostics log
+        # Diagnostics log - safe checks only, do NOT print the key or OTP
         print(f"[EMAIL SERVICE - DIAGNOSTIC] provider: resend")
         print(f"[EMAIL SERVICE - DIAGNOSTIC] resend_api_key_present: {bool(resend_key)}")
         print(f"[EMAIL SERVICE - DIAGNOSTIC] resend_from_email_present: {bool(from_email)}")
         
-        if env == "development" and not resend_key:
-            # Development fallback write to file if Resend key is missing locally
-            return write_dev_otp_fallback(recipient_email, otp)
-            
         if not resend_key:
-            raise Exception("ResendAPIError: RESEND_API_KEY is not configured.")
+            raise Exception("Unable to send OTP email. Please contact admin.")
             
         try:
-            salutation = "Dear Student," if role == "student" else "Dear User,"
-            signature = "Regards,<br>Student360 Team<br>Karpagam College of Engineering"
-            
-            html_content = (
-                f"<p>{salutation}</p>"
-                f"<p>Your Student360 password reset OTP is: <b>{otp}</b></p>"
-                f"<p>This OTP is valid for 10 minutes.</p>"
-                f"<p>If you did not request this, please ignore this email.</p>"
-                f"<p>{signature}</p>"
-            )
+            # HTML content matching user request format
+            html_content = f"<p>Your Student360 password reset OTP is <b>{otp}</b></p><p>This OTP is valid for 10 minutes.</p>"
             
             headers = {
                 "Authorization": f"Bearer {resend_key}",
@@ -70,6 +55,7 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
                 "html": html_content
             }
             
+            # Post request with timeout=15.0 seconds
             response = httpx.post(
                 "https://api.resend.com/emails",
                 json=payload,
@@ -77,21 +63,23 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
                 timeout=15.0
             )
             
-            if response.status_code in [200, 201, 202]:
+            # Return success only if Resend returns 200 or 202
+            if response.status_code in [200, 202]:
                 print(f"[EMAIL SERVICE - RESEND] Successfully sent OTP email to {recipient_email}")
                 return True
             else:
-                err_detail = response.text
-                raise Exception(f"ResendAPIError: API call failed with status code {response.status_code}. Detail: {err_detail}")
+                # Do NOT log response details to avoid exposing secrets.
+                # Safe log only.
+                print(f"[EMAIL SERVICE - RESEND ERROR] Resend API returned status code {response.status_code}")
+                raise Exception("Unable to send OTP email. Please contact admin.")
         except httpx.TimeoutException:
-            raise Exception("TimeoutError: Email service timed out. Please try again later.")
-        except Exception as e:
-            err_msg = str(e)
-            if "timeout" in err_msg.lower():
-                raise Exception("TimeoutError: Email service timed out. Please try again later.")
-            raise Exception(f"ResendAPIError: {err_msg}")
+            print("[EMAIL SERVICE - RESEND ERROR] Resend request timed out after 15 seconds")
+            raise Exception("Unable to send OTP email. Please contact admin.")
+        except Exception:
+            print("[EMAIL SERVICE - RESEND ERROR] Resend email transmission failed")
+            raise Exception("Unable to send OTP email. Please contact admin.")
             
-    # 3. SMTP Flow
+    # 3. SMTP Flow (Only if EMAIL_PROVIDER=smtp)
     else:
         smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
         port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
@@ -138,7 +126,7 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
                 server_class = smtplib.SMTP_SSL
             else:
                 server_class = smtplib.SMTP
-
+ 
             with server_class(smtp_host, int(smtp_port), timeout=15) as server:
                 if not (use_ssl or smtp_port == 465) and use_tls:
                     server.starttls()
