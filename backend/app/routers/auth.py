@@ -324,7 +324,7 @@ async def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_
     Step 2 of forgot password. Verifies 6-digit OTP, increments attempts on failure,
     and returns a short-lived reset token with purpose claim.
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
     from app.models.otp_models import PasswordResetOTP, PasswordResetLog
     from app.models.student import Student
     from app.utils.security import verify_password
@@ -386,7 +386,7 @@ async def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_
         )
         db.add(log)
         db.commit()
-        raise HTTPException(status_code=400, detail="Reset code is invalid or has expired")
+        raise HTTPException(status_code=400, detail="OTP expired")
 
     # Limit attempts
     if db_otp.attempts >= 5:
@@ -425,7 +425,7 @@ async def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_
         
         if db_otp.attempts >= 5:
             raise HTTPException(status_code=400, detail="Too many failed attempts. Please request a new code.")
-        raise HTTPException(status_code=400, detail="Reset code is incorrect")
+        raise HTTPException(status_code=400, detail="Invalid OTP")
 
     # Generate a secure short-lived reset token with specific purpose claim
     expire = datetime.utcnow() + timedelta(minutes=15)

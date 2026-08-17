@@ -74,12 +74,20 @@ export const ForgotPasswordPage = () => {
       setStep(3);
     } catch (err) {
       const errMsg = err.message || "";
-      if (err.response?.status === 404) {
+      const detail = err.response?.data?.detail;
+      
+      if (!err.response) {
+        setError("Unable to verify OTP. Please try again.");
+      } else if (err.response.status === 404) {
         setError("No account found for this register number or email.");
-      } else if (err.response?.status === 504 || errMsg.toLowerCase().includes("timeout") || errMsg.toLowerCase().includes("exceeded")) {
+      } else if (detail === "Invalid OTP") {
+        setError("Invalid OTP");
+      } else if (detail === "OTP expired") {
+        setError("OTP expired. Please request a new code.");
+      } else if (err.response.status === 504 || errMsg.toLowerCase().includes("timeout") || errMsg.toLowerCase().includes("exceeded")) {
         setError("Email service timed out. Please try again later.");
       } else {
-        setError(err.response?.data?.detail || errMsg || "Invalid reset code. Please try again.");
+        setError(detail || "Unable to verify OTP. Please try again.");
       }
     } finally {
       setLoading(false);
