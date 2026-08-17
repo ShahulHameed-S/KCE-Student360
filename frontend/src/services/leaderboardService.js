@@ -2,13 +2,24 @@ import api from "./api";
 
 export const leaderboardService = {
   getOverallLeaderboard: async () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("GET /leaderboard/overall");
     try {
       const response = await api.get("/leaderboard/overall", { timeout: 120000 });
+      if (isDev) console.timeEnd("GET /leaderboard/overall");
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd("GET /leaderboard/overall");
       console.warn("Overall Leaderboard API failed, trying /mentor/leaderboard fallback:", error.message);
-      const mentorRes = await api.get("/mentor/leaderboard?domain=Overall", { timeout: 120000 });
-      return mentorRes.data;
+      if (isDev) console.time("GET /mentor/leaderboard?domain=Overall");
+      try {
+        const mentorRes = await api.get("/mentor/leaderboard?domain=Overall", { timeout: 120000 });
+        if (isDev) console.timeEnd("GET /mentor/leaderboard?domain=Overall");
+        return mentorRes.data;
+      } catch (err) {
+        if (isDev) console.timeEnd("GET /mentor/leaderboard?domain=Overall");
+        throw err;
+      }
     }
   },
 
@@ -21,13 +32,24 @@ export const leaderboardService = {
       cleanDomain = "FullStack";
     }
 
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time(`GET /leaderboard/domain/${cleanDomain}`);
     try {
       const response = await api.get(`/leaderboard/domain/${cleanDomain}`, { timeout: 120000 });
+      if (isDev) console.timeEnd(`GET /leaderboard/domain/${cleanDomain}`);
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd(`GET /leaderboard/domain/${cleanDomain}`);
       console.warn(`Domain Leaderboard API for ${cleanDomain} failed, trying /mentor/leaderboard fallback:`, error.message);
-      const mentorRes = await api.get(`/mentor/leaderboard?domain=${cleanDomain}`, { timeout: 120000 });
-      return mentorRes.data;
+      if (isDev) console.time(`GET /mentor/leaderboard?domain=${cleanDomain}`);
+      try {
+        const mentorRes = await api.get(`/mentor/leaderboard?domain=${cleanDomain}`, { timeout: 120000 });
+        if (isDev) console.timeEnd(`GET /mentor/leaderboard?domain=${cleanDomain}`);
+        return mentorRes.data;
+      } catch (err) {
+        if (isDev) console.timeEnd(`GET /mentor/leaderboard?domain=${cleanDomain}`);
+        throw err;
+      }
     }
   }
 };

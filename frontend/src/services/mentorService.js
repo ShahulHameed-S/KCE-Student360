@@ -7,10 +7,14 @@ let localApprovals = [...mockApprovals];
 export const mentorService = {
   // Get all approvals (for full-view with filters)
   getAllApprovals: async () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("GET /mentor/approvals");
     try {
       const response = await api.get("/mentor/approvals");
+      if (isDev) console.timeEnd("GET /mentor/approvals");
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd("GET /mentor/approvals");
       console.warn("Approvals API failed, returning mock approvals:", error.message);
       if (import.meta.env.PROD) {
         throw error;
@@ -21,10 +25,14 @@ export const mentorService = {
 
   // Get only pending (used in dashboard preview)
   getPendingApprovals: async () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("GET /mentor/pending");
     try {
       const response = await api.get("/mentor/pending");
+      if (isDev) console.timeEnd("GET /mentor/pending");
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd("GET /mentor/pending");
       console.warn("Pending Approvals API failed, returning mock pending approvals:", error.message);
       if (import.meta.env.PROD) {
         throw error;
@@ -57,10 +65,14 @@ export const mentorService = {
 
   // Retrieve list of assigned students for current mentor
   getAssignedStudents: async () => {
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("GET /mentor/students");
     try {
       const response = await api.get("/mentor/students", { timeout: 120000 });
+      if (isDev) console.timeEnd("GET /mentor/students");
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd("GET /mentor/students");
       console.warn("Assigned Students API failed:", error.message);
       if (import.meta.env.PROD) {
         throw error;

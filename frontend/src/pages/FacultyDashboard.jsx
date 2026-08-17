@@ -1342,6 +1342,31 @@ export const FacultyDashboard = () => {
   const [adminTotalMentors, setAdminTotalMentors] = useState(0);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState("");
+
+  const renderStatCard = (title, value, icon, description, trend, trendType, onIconClick) => {
+    if (loading) {
+      return (
+        <div className="bg-white p-5 rounded-none border border-[#D1D5DB] border-t-4 border-t-[#C76F2B] shadow-none flex items-start justify-between animate-pulse">
+          <div className="space-y-2 w-full">
+            <div className="h-3 bg-[#E5E5E5] w-24 rounded-none"></div>
+            <div className="h-6 bg-[#E5E5E5] w-16 rounded-none"></div>
+            <div className="h-3 bg-[#E5E5E5] w-32 rounded-none"></div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <StatCard
+        title={title}
+        value={value}
+        icon={icon}
+        description={description}
+        trend={trend}
+        trendType={trendType}
+        onIconClick={onIconClick}
+      />
+    );
+  };
   
   // Student pagination & search states
   const [adminStudentsPage, setAdminStudentsPage] = useState(1);
@@ -2103,7 +2128,7 @@ export const FacultyDashboard = () => {
         .slice(0, 5)
     : [];
 
-  if (loading) {
+  if (loading && (!user || user.role === "student")) {
     return <LoadingSpinner size="lg" text="Aggregating dashboard analytics..." />;
   }
 
@@ -2409,13 +2434,12 @@ export const FacultyDashboard = () => {
               </p>
             </div>
 
-            {/* KPI Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <StatCard title="Assigned Students" value={totalStudents} icon={Users} description="Assigned profile portfolios" />
-              <StatCard title="Pending Approvals" value={pendingApprovalsCount} icon={CheckSquare} description="Certificates needing validation" trend={pendingApprovalsCount > 0 ? "Pending Review" : "Clear"} trendType={pendingApprovalsCount > 0 ? "negative" : "positive"} />
-              <StatCard title="Approved Achievements" value={approvedCount} icon={CheckCircle} description="Logged achievements in system" />
-              <StatCard title="Students Needing Attention" value={needyStudents.length} icon={AlertTriangle} description="Averages below 78% proficiency" />
-              <StatCard title="Average Performance" value={safePercent(overallAverage, 1)} icon={GraduationCap} description="Assigned class aggregate" />
+              {renderStatCard("Assigned Students", totalStudents, Users, "Assigned profile portfolios")}
+              {renderStatCard("Pending Approvals", pendingApprovalsCount, CheckSquare, "Certificates needing validation", pendingApprovalsCount > 0 ? "Pending Review" : "Clear", pendingApprovalsCount > 0 ? "negative" : "positive")}
+              {renderStatCard("Approved Achievements", approvedCount, CheckCircle, "Logged achievements in system")}
+              {renderStatCard("Students Needing Attention", needyStudents.length, AlertTriangle, "Averages below 78% proficiency")}
+              {renderStatCard("Average Performance", safePercent(overallAverage, 1), GraduationCap, "Assigned class aggregate")}
             </div>
 
             {/* Mentor Content columns */}
@@ -2427,7 +2451,11 @@ export const FacultyDashboard = () => {
                   <p className="text-xs text-[#6B7280] font-semibold mt-0.5">Quick preview of certifications and achievements awaiting verification</p>
                 </div>
                 
-                {pendingApprovals.length === 0 ? (
+                {loading ? (
+                  <div className="py-12 flex justify-center items-center bg-[#F7F7F7] border border-[#D1D5DB]">
+                    <div className="w-6 h-6 border-2 border-[#C76F2B] border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : pendingApprovals.length === 0 ? (
                   <p className="text-xs text-[#6B7280] font-bold uppercase tracking-wider py-8 text-center bg-[#F7F7F7] border border-[#D1D5DB]">All student approvals are cleared.</p>
                 ) : (
                   <div className="overflow-x-auto border border-[#D1D5DB]">
@@ -2479,7 +2507,13 @@ export const FacultyDashboard = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
-                      {totalStudents === 0 ? (
+                      {loading ? (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center bg-[#F7F7F7]">
+                            <div className="w-6 h-6 border-2 border-[#C76F2B] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                          </td>
+                        </tr>
+                      ) : totalStudents === 0 ? (
                         <tr>
                           <td colSpan={3} className="py-8 text-center text-[#6B7280] font-black uppercase">
                             No students assigned yet

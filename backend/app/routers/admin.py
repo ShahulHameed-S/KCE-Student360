@@ -637,6 +637,8 @@ async def upload_students(
             
     try:
         db.commit()
+        from app.services.cache_service import invalidate_all_caches
+        invalidate_all_caches()
     except Exception as commit_err:
         db.rollback()
         errors_list.append({
@@ -1177,6 +1179,9 @@ async def admin_assign_all_students_to_mentor(
 
     db.commit()
 
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
+
     return {
         "success": True,
         "mentor_email": mentor_user.email,
@@ -1254,6 +1259,9 @@ async def admin_assign_students_to_mentor(
             assigned_count += 1
 
     db.commit()
+
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
 
     return {
         "success": True,
@@ -1359,6 +1367,9 @@ async def admin_upload_mentor_assignments(
             assigned_count += 1
 
     db.commit()
+
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
 
     return {
         "success": True,

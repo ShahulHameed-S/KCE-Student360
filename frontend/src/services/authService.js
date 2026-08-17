@@ -50,6 +50,8 @@ const tryMockLogin = (identifier, password) => {
 export const authService = {
   login: async (identifier, password) => {
     const cleanIdentifier = (identifier || "").trim();
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("POST /auth/login");
     try {
       const response = await api.post("/auth/login", {
         email: cleanIdentifier,
@@ -57,8 +59,10 @@ export const authService = {
       }, {
         timeout: 120000
       });
+      if (isDev) console.timeEnd("POST /auth/login");
       return response.data;
     } catch (error) {
+      if (isDev) console.timeEnd("POST /auth/login");
       if (isProduction) {
         throw error;
       }
@@ -73,8 +77,16 @@ export const authService = {
   },
 
   getMe: async () => {
-    const response = await api.get("/auth/me");
-    return response.data;
+    const isDev = import.meta.env.DEV;
+    if (isDev) console.time("GET /auth/me");
+    try {
+      const response = await api.get("/auth/me");
+      if (isDev) console.timeEnd("GET /auth/me");
+      return response.data;
+    } catch (error) {
+      if (isDev) console.timeEnd("GET /auth/me");
+      throw error;
+    }
   },
   
   logout: async () => {

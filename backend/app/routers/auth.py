@@ -12,6 +12,8 @@ router = APIRouter()
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, db: Session = Depends(get_db)):
     """Authenticates the user and returns access/refresh JWT tokens."""
+    import time
+    start = time.time()
     user = authenticate_user(db, payload.email, payload.password)
     if not user:
         raise HTTPException(
@@ -37,6 +39,9 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
     refresh_token = create_refresh_token(data=token_data)
     user_payload = create_user_auth_payload(user, db)
 
+    duration = time.time() - start
+    print(f"[TIMING] POST /auth/login took {duration:.4f} seconds.")
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -47,7 +52,12 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserAuthResponse)
 async def get_me(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     """Retrieves metadata of the currently authenticated active user."""
-    return create_user_auth_payload(current_user, db)
+    import time
+    start = time.time()
+    res = create_user_auth_payload(current_user, db)
+    duration = time.time() - start
+    print(f"[TIMING] GET /auth/me took {duration:.4f} seconds.")
+    return res
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)):

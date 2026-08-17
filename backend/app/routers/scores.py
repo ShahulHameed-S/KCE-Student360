@@ -33,6 +33,10 @@ async def upload_scores(
 
     file_bytes = await file.read()
     report = process_scores_excel(db, file_bytes, current_user.id, allowed_student_ids)
+
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
+
     return report
 
 
@@ -190,6 +194,9 @@ async def edit_score(
     recalculate_student_analytics(db, score_obj.student_id)
     db.commit()
 
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
+
     student_obj = db.query(Student).filter(Student.id == score_obj.student_id).first()
 
     return {
@@ -257,6 +264,9 @@ async def bulk_delete_scores(
         recalculate_student_analytics(db, sid)
     db.commit()
 
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
+
     return BulkDeleteScoresResponse(
         success=True,
         deleted_count=deleted_count,
@@ -289,6 +299,9 @@ async def delete_score(
     # Recalculate student analytics after deletion
     recalculate_student_analytics(db, student_id)
     db.commit()
+
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
 
     return {
         "success": True,

@@ -245,40 +245,40 @@ async def get_mentor_students(
     db: Session = Depends(get_db)
 ):
     """Retrieves list of assigned students for a mentor (or all for admin/faculty)."""
-    from app.models.score import StudentAnalytics
-    from app.models.profile import UserProfile
-    from app.models.portfolio import PortfolioCustomization
+    import json
+    from app.services.cache_service import get_cache, set_cache
     from app.utils.url_utils import build_portfolio_urls
+
+    cache_key = f"mentor_students:{current_user.id}"
+    cached_data = get_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
 
     students = resolve_mentor_students(db, current_user)
 
     res_list = []
     for s in students:
         try:
-            analytics = db.query(StudentAnalytics).filter(StudentAnalytics.student_id == s.id).first()
+            # Use preloaded relationship
+            analytics = s.analytics
             
-            # Safe profile image resolution
-            img_url = getattr(s, "profile_image", None) or ""
-            if not img_url and getattr(s, "user_id", None):
-                try:
-                    user_prof = db.query(UserProfile).filter(UserProfile.user_id == s.user_id).first()
-                    if user_prof and getattr(user_prof, "profile_image", None):
-                        img_url = user_prof.profile_image
-                except Exception:
-                    pass
+            # Safe profile image resolution from preloaded relationship
+            img_url = s.profile_image or ""
+            if not img_url and s.user and s.user.user_profile:
+                img_url = s.user.user_profile.profile_image or ""
 
-            # Safe external portfolio URL resolution
+            # Safe external portfolio URL resolution from preloaded relationship
             ext_url = ""
-            try:
-                cust = db.query(PortfolioCustomization).filter(PortfolioCustomization.student_id == s.id).first()
-                if cust and getattr(cust, "section_visibility_json", None):
+            cust = s.portfolio_customization
+            if cust and getattr(cust, "section_visibility_json", None):
+                try:
                     parsed = json.loads(cust.section_visibility_json)
                     if isinstance(parsed, dict):
                         ext_url = parsed.get("external_portfolio_url", "")
-            except Exception:
-                pass
+                except Exception:
+                    pass
 
-            reg_no = getattr(s, "register_no", "") or ""
+            reg_no = s.register_no or ""
             port_urls = build_portfolio_urls(reg_no, ext_url)
 
             overall_sc = None
@@ -291,18 +291,18 @@ async def get_mentor_students(
 
             res_list.append({
                 "id": s.id,
-                "user_id": getattr(s, "user_id", None),
-                "userId": getattr(s, "user_id", None),
+                "user_id": s.user_id,
+                "userId": s.user_id,
                 "register_no": reg_no,
                 "registerNo": reg_no,
-                "name": getattr(s, "name", "") or "",
-                "email": getattr(s, "email", "") or "",
-                "phone": getattr(s, "phone", "") or "",
-                "department": getattr(s, "department", "") or "",
-                "year": getattr(s, "year", "") or "",
-                "section": getattr(s, "section", "") or "",
-                "batch": getattr(s, "batch", "") or "",
-                "cgpa": getattr(s, "cgpa", 0.0) or 0.0,
+                "name": s.name or "",
+                "email": s.email or "",
+                "phone": s.phone or "",
+                "department": s.department or "",
+                "year": s.year or "",
+                "section": s.section or "",
+                "batch": s.batch or "",
+                "cgpa": s.cgpa or 0.0,
                 "avatar_url": img_url,
                 "profile_image_url": img_url,
                 "image_url": img_url,
@@ -311,7 +311,7 @@ async def get_mentor_students(
                 "external_portfolio_url": port_urls["external_portfolio_url"],
                 "default_portfolio_url": port_urls["default_portfolio_url"],
                 "student360_portfolio_url": port_urls["student360_portfolio_url"],
-                "created_at": s.created_at.isoformat() if getattr(s, "created_at", None) else "",
+                "created_at": s.created_at.isoformat() if s.created_at else "",
                 "overall_score": overall_sc,
                 "overallScore": overall_sc,
                 "strongest_domain": str_dom,
@@ -320,9 +320,10 @@ async def get_mentor_students(
                 "weakestDomain": weak_dom
             })
         except Exception as err:
-            print(f"[WARN] Error serializing mentor student ID {getattr(s, 'id', None)}: {err}")
+            print(f"[WARN] Error serializing mentor student ID {s.id}: {err}")
             continue
 
+    set_cache(cache_key, res_list, ttl_seconds=60)
     return res_list
 
 
@@ -396,9 +397,18 @@ async def get_mentor_leaderboard(
     current_user: User = Depends(RoleRequired(["mentor", "admin"]))
 ):
     """Retrieves mentor student leaderboard."""
+    from app.services.cache_service import get_cache, set_cache
+    cache_key = f"mentor_leaderboard:{current_user.id}:{domain}"
+    cached_data = get_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     from app.services.leaderboard_service import get_leaderboard_data
     leaderboard = get_leaderboard_data(db, domain, current_user=current_user)
-    return {"leaderboard": leaderboard}
+    result = {"leaderboard": leaderboard}
+    
+    set_cache(cache_key, result, ttl_seconds=60)
+    return result
 
 
 from fastapi import UploadFile, File
@@ -422,4 +432,9 @@ async def mentor_upload_scores(
         allowed_student_ids = [s.id for s in mentor_students]
 
     file_bytes = await file.read()
-    return process_scores_excel(db, file_bytes, current_user.id, allowed_student_ids)
+    report = process_scores_excel(db, file_bytes, current_user.id, allowed_student_ids)
+
+    from app.services.cache_service import invalidate_all_caches
+    invalidate_all_caches()
+
+    return report

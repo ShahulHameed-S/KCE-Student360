@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.student import Student, MentorAssignment
 
+from sqlalchemy.orm import joinedload
+
 def get_assigned_student_ids(db: Session, mentor_id: int) -> List[int]:
     """Helper to retrieve Student IDs assigned to a specific mentor user."""
     assignments = db.query(MentorAssignment).filter(MentorAssignment.mentor_id == mentor_id).all()
@@ -10,17 +12,23 @@ def get_assigned_student_ids(db: Session, mentor_id: int) -> List[int]:
 
 def resolve_mentor_students(db: Session, current_user: User) -> List[Student]:
     """Resolves assigned students for a mentor (via mentor_assignments) or all students for admin/faculty."""
+    query = db.query(Student).options(
+        joinedload(Student.analytics),
+        joinedload(Student.portfolio_customization),
+        joinedload(Student.user).joinedload(User.user_profile)
+    )
+
     if current_user.role in ["admin", "faculty"]:
-        all_students = db.query(Student).all()
-        return [s for s in all_students if not s.register_no.lower().startswith("22ad")]
+        all_students = query.all()
+        return [s for s in all_students if s.register_no and not s.register_no.lower().startswith("22ad")]
 
     assigned_student_ids = get_assigned_student_ids(db, current_user.id)
     if not assigned_student_ids:
         return []
 
-    assigned_students = db.query(Student).filter(Student.id.in_(assigned_student_ids)).all()
+    assigned_students = query.filter(Student.id.in_(assigned_student_ids)).all()
     # Filter out demo 22AD students so only real assigned students are returned
-    return [s for s in assigned_students if not s.register_no.lower().startswith("22ad")]
+    return [s for s in assigned_students if s.register_no and not s.register_no.lower().startswith("22ad")]
 
 def get_mentor_allowed_student_ids(db: Session, current_user: User) -> Optional[List[int]]:
     """Returns list of allowed student IDs for a mentor, or None for admin/faculty (unrestricted)."""

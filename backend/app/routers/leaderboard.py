@@ -38,7 +38,20 @@ async def get_overall_leaderboard(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Retrieves overall ranked leaderboard of student performance scores."""
+    from app.services.cache_service import get_cache, set_cache
+    user_id = current_user.id if current_user else "public"
+    role = current_user.role if current_user else "public"
+    batch = getattr(current_user.student_profile, "batch", "all") if (current_user and current_user.student_profile) else "all"
+    page = "1"
+    limit = "all"
+    cache_key = f"leaderboard_overall:{role}:{user_id}:{batch}:{page}:{limit}"
+    
+    cached_data = get_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     data = get_leaderboard_data(db, "Overall", current_user=current_user)
+    set_cache(cache_key, data, ttl_seconds=60)
     return data
 
 @router.get("/domain/{domain}")
@@ -48,5 +61,18 @@ async def get_domain_leaderboard(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Retrieves domain-specific ranked leaderboard sorted by domain average."""
+    from app.services.cache_service import get_cache, set_cache
+    user_id = current_user.id if current_user else "public"
+    role = current_user.role if current_user else "public"
+    batch = getattr(current_user.student_profile, "batch", "all") if (current_user and current_user.student_profile) else "all"
+    page = "1"
+    limit = "all"
+    cache_key = f"leaderboard_domain:{role}:{user_id}:{domain}:{batch}:{page}:{limit}"
+    
+    cached_data = get_cache(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     data = get_leaderboard_data(db, domain, current_user=current_user)
+    set_cache(cache_key, data, ttl_seconds=60)
     return data
