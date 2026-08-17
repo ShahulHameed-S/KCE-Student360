@@ -1770,11 +1770,28 @@ async def debug_email_config(
     db: Session = Depends(get_db)
 ):
     """
-    Returns diagnostic config status for SMTP without exposing sensitive credentials.
+    Returns diagnostic config status for both Resend and SMTP without exposing sensitive credentials.
     """
     import os
     from app.config import settings
     
+    # Provider detection
+    email_provider = os.environ.get("EMAIL_PROVIDER")
+    if not email_provider:
+        email_provider = getattr(settings, "EMAIL_PROVIDER", None)
+        
+    resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
+    from_email = os.environ.get("RESEND_FROM_EMAIL") or getattr(settings, "RESEND_FROM_EMAIL", "onboarding@resend.dev")
+    
+    if not email_provider:
+        if resend_key:
+            email_provider = "resend"
+        else:
+            email_provider = "smtp"
+            
+    email_provider = email_provider.lower().strip()
+    
+    # SMTP variables check
     smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
     port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
     smtp_port = int(port_val) if port_val else None
@@ -1785,12 +1802,10 @@ async def debug_email_config(
     smtp_configured = all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from])
     
     return {
-        "smtp_configured": bool(smtp_configured),
-        "smtp_host_present": bool(smtp_host),
-        "smtp_port_present": bool(smtp_port),
-        "smtp_username_present": bool(smtp_user),
-        "smtp_password_present": bool(smtp_password),
-        "from_email_present": bool(smtp_from)
+        "email_provider": email_provider,
+        "resend_api_key_present": bool(resend_key),
+        "resend_from_email_present": bool(from_email),
+        "smtp_configured": bool(smtp_configured)
     }
 
 @router.post("/debug/send-test-email")
@@ -1800,51 +1815,30 @@ async def debug_send_test_email(
     db: Session = Depends(get_db)
 ):
     """
-    Sends a test email to the specified address.
+    Sends a test OTP email to the specified address to verify configuration.
     """
-    import os
-    import smtplib
-    from email.mime.text import MIMEText
-    from app.config import settings
+    from app.services.email_service import send_otp_email
     
-    smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
-    port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
-    smtp_port = int(port_val) if port_val else None
-    smtp_user = os.environ.get("SMTP_USERNAME") or os.environ.get("MAIL_USERNAME") or os.environ.get("SMTP_USER") or settings.SMTP_USER
-    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or settings.SMTP_PASSWORD
-    smtp_from = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("MAIL_FROM") or os.environ.get("SMTP_FROM") or settings.SMTP_FROM
-    
-    smtp_tls_val = os.environ.get("SMTP_TLS") or os.environ.get("MAIL_TLS") or "true"
-    use_tls = smtp_tls_val.lower() == "true"
-    
-    if not all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from]):
-        return {
-            "success": False,
-            "message": "Email sending failed",
-            "error_type": "ConfigurationError: SMTP variables are not fully configured."
-        }
-        
     try:
-        msg = MIMEText("This is a diagnostic test email from the Student360 platform.")
-        msg["Subject"] = "Student360 SMTP Diagnostic Test"
-        msg["From"] = smtp_from
-        msg["To"] = payload.to_email
-        
-        server = smtplib.SMTP(smtp_host, int(smtp_port))
-        if use_tls:
-            server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-        
+        # Use the same OTP dispatch method
+        send_otp_email(payload.to_email, "123456", role="student")
         return {
             "success": True,
             "message": "Test email sent"
         }
     except Exception as e:
+        err_msg = str(e)
+        error_type = "EmailError"
+        if "resendapierror" in err_msg.lower():
+            error_type = "ResendAPIError"
+        elif "timeouterror" in err_msg.lower():
+            error_type = "TimeoutError"
+        elif "authentication" in err_msg.lower():
+            error_type = "SMTPAuthenticationError"
+            
         return {
             "success": False,
-            "message": "Email sending failed",
-            "error_type": type(e).__name__
+            "message": err_msg,
+            "error_type": error_type
         }
 
