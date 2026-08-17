@@ -3,7 +3,7 @@ import smtplib
 from email.mime.text import MIMEText
 from app.config import settings
 
-def send_otp_email(recipient_email: str, otp: str) -> bool:
+def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> bool:
     """
     Sends an OTP email to the recipient.
     If ENVIRONMENT == "development" and SMTP details are missing, falls back to writing to scratch/last_otp.txt.
@@ -26,12 +26,9 @@ def send_otp_email(recipient_email: str, otp: str) -> bool:
         else:
             # Development fallback
             try:
-                # Find scratch directory relative to project root or app root
                 app_dir = os.path.abspath(os.path.dirname(__file__))
-                # Try project root scratch (relative to backend/app/services)
                 scratch_dir = os.path.abspath(os.path.join(app_dir, "..", "..", "..", "scratch"))
                 if not os.path.exists(scratch_dir):
-                    # Fallback to backend root scratch
                     scratch_dir = os.path.abspath(os.path.join(app_dir, "..", "..", "scratch"))
                 os.makedirs(scratch_dir, exist_ok=True)
                 
@@ -45,22 +42,24 @@ def send_otp_email(recipient_email: str, otp: str) -> bool:
                 raise Exception(f"Failed to write dev OTP to scratch file: {str(e)}")
                 
     try:
+        # Dynamic salutation based on user role
+        salutation = "Dear Student," if role == "student" else "Dear User,"
+        signature = "Regards,\nStudent360 Team\nKarpagam College of Engineering"
+        
         # Construct email message
         msg = MIMEText(
-            f"Hello,\n\n"
-            f"You requested to reset your password. Here is your One-Time Password (OTP):\n\n"
-            f"{otp}\n\n"
-            f"This code will expire in 10 minutes.\n"
+            f"{salutation}\n\n"
+            f"Your Student360 password reset OTP is: {otp}\n\n"
+            f"This OTP is valid for 10 minutes.\n\n"
             f"If you did not request this, please ignore this email.\n\n"
-            f"Best regards,\n"
-            f"Student360 Admin Team"
+            f"{signature}"
         )
         msg["Subject"] = "Student360 Password Reset OTP"
         msg["From"] = smtp_from
         msg["To"] = recipient_email
         
         # Connect to SMTP server
-        server = smtplib.SMTP(smtp_host, smtp_port)
+        server = smtplib.SMTP(smtp_host, int(smtp_port))
         server.starttls()
         server.login(smtp_user, smtp_password)
         server.send_message(msg)

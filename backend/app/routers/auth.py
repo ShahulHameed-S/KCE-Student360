@@ -223,44 +223,67 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
     otp_hash = get_password_hash(otp)
     expires_at = datetime.utcnow() + timedelta(minutes=10)
 
-    # Deactivate previous active OTPs for safety
-    db.query(PasswordResetOTP).filter(
-        PasswordResetOTP.user_id == user.id,
-        PasswordResetOTP.is_used == False
-    ).update({"is_used": True})
-
-    # Save OTP to database
-    db_otp = PasswordResetOTP(
-        user_id=user.id,
-        email=email_to_use,
-        otp_hash=otp_hash,
-        expires_at=expires_at,
-        is_used=False,
-        attempts=0
-    )
-    db.add(db_otp)
-
-    # Log action
-    log = PasswordResetLog(
-        user_id=user.id,
-        email=email_to_use,
-        register_no=user.username if user.role == "student" else None,
-        role=user.role,
-        action="otp_request",
-        status="success",
-        message="OTP generated and reset email transmission triggered"
-    )
-    db.add(log)
-    db.commit()
-
     # Send plain text OTP via email service (will handle fallback in development)
     try:
-        send_otp_email(email_to_use, otp)
+        send_otp_email(email_to_use, otp, role=user.role)
     except Exception as e:
-        print(f"[ERROR] Failed to send email: {str(e)}")
-        import os
-        if os.environ.get("ENVIRONMENT", "development").lower() == "production":
-            print(f"[PRODUCTION ERROR] Email transmission failed: {str(e)}")
+        err_msg = str(e)
+        print(f"[ERROR] Failed to send email to {email_to_use}: {err_msg}")
+        
+        # Log failure audit record securely
+        try:
+            log = PasswordResetLog(
+                user_id=user.id,
+                email=email_to_use,
+                register_no=user.username if user.role == "student" else None,
+                role=user.role,
+                action="otp_request",
+                status="failure",
+                message=f"Email delivery failed: {err_msg}"
+            )
+            db.add(log)
+            db.commit()
+        except Exception:
+            db.rollback()
+            
+        detail_msg = "Unable to send OTP email. Please contact admin."
+        if "not configured" in err_msg.lower():
+            detail_msg = "Email service is not configured."
+        raise HTTPException(status_code=500, detail=detail_msg)
+
+    # Deactivate previous active OTPs for safety
+    try:
+        db.query(PasswordResetOTP).filter(
+            PasswordResetOTP.user_id == user.id,
+            PasswordResetOTP.is_used == False
+        ).update({"is_used": True})
+
+        # Save OTP to database
+        db_otp = PasswordResetOTP(
+            user_id=user.id,
+            email=email_to_use,
+            otp_hash=otp_hash,
+            expires_at=expires_at,
+            is_used=False,
+            attempts=0
+        )
+        db.add(db_otp)
+
+        # Log action
+        log = PasswordResetLog(
+            user_id=user.id,
+            email=email_to_use,
+            register_no=user.username if user.role == "student" else None,
+            role=user.role,
+            action="otp_request",
+            status="success",
+            message="OTP generated and reset email sent successfully"
+        )
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Unable to save OTP session. Please try again.")
 
     def mask_email(email_str: str, role: str) -> str:
         if not email_str or "@" not in email_str:

@@ -1758,3 +1758,85 @@ async def update_student_register_emails(
         "errors": errors
     }
 
+
+from pydantic import BaseModel
+
+class TestEmailRequest(BaseModel):
+    to_email: str
+
+@router.get("/debug/email-config")
+async def debug_email_config(
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns diagnostic config status for SMTP without exposing sensitive credentials.
+    """
+    from app.config import settings
+    
+    smtp_host = settings.SMTP_HOST
+    smtp_port = settings.SMTP_PORT
+    smtp_user = settings.SMTP_USER
+    smtp_password = settings.SMTP_PASSWORD
+    smtp_from = settings.SMTP_FROM
+    
+    smtp_configured = all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from])
+    
+    return {
+        "smtp_configured": bool(smtp_configured),
+        "smtp_host_present": bool(smtp_host),
+        "smtp_port_present": bool(smtp_port),
+        "smtp_username_present": bool(smtp_user),
+        "smtp_password_present": bool(smtp_password),
+        "from_email_present": bool(smtp_from)
+    }
+
+@router.post("/debug/send-test-email")
+async def debug_send_test_email(
+    payload: TestEmailRequest,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Sends a test email to the specified address.
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from app.config import settings
+    
+    smtp_host = settings.SMTP_HOST
+    smtp_port = settings.SMTP_PORT
+    smtp_user = settings.SMTP_USER
+    smtp_password = settings.SMTP_PASSWORD
+    smtp_from = settings.SMTP_FROM
+    
+    if not all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from]):
+        return {
+            "success": False,
+            "message": "Email sending failed",
+            "error_type": "ConfigurationError: SMTP variables are not fully configured."
+        }
+        
+    try:
+        msg = MIMEText("This is a diagnostic test email from the Student360 platform.")
+        msg["Subject"] = "Student360 SMTP Diagnostic Test"
+        msg["From"] = smtp_from
+        msg["To"] = payload.to_email
+        
+        server = smtplib.SMTP(smtp_host, int(smtp_port))
+        server.starttls()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+        server.quit()
+        
+        return {
+            "success": True,
+            "message": "Test email sent"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": "Email sending failed",
+            "error_type": type(e).__name__
+        }
+
