@@ -49,7 +49,11 @@ export const ForgotPasswordPage = () => {
       setSuccessMsg(res.message || "OTP code sent to your registered email.");
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || "Failed to request password reset code.");
+      if (err.response?.status === 404) {
+        setError("No account found for this register number or email.");
+      } else {
+        setError(err.response?.data?.detail || err.message || "Failed to request password reset code.");
+      }
     } finally {
       setLoading(false);
     }
@@ -66,7 +70,11 @@ export const ForgotPasswordPage = () => {
       setSuccessMsg("Reset code verified successfully. Please choose a new password.");
       setStep(3);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || "Invalid reset code. Please try again.");
+      if (err.response?.status === 404) {
+        setError("No account found for this register number or email.");
+      } else {
+        setError(err.response?.data?.detail || err.message || "Invalid reset code. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

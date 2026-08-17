@@ -152,25 +152,33 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
 
     identifier = payload.email_or_register_no.strip()
     if not identifier:
-        return {
-            "success": True,
-            "message": "If the account exists, an OTP has been sent to the registered email."
-        }
+        raise HTTPException(status_code=404, detail="No account found for this register number or email.")
+
+    if "@" in identifier:
+        local_part = identifier.split("@")[0].strip()
+    else:
+        local_part = identifier
 
     user = None
     
-    # 1. Email check
+    # 1. users.email == identifier case-insensitive
     user = db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
     
-    # 2. Student register number check
+    # 2. users.username == identifier case-insensitive
+    if not user:
+        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+        
+    # 3. students.register_no == identifier case-insensitive
     if not user:
         student = db.query(Student).filter(func.lower(Student.register_no) == identifier.lower()).first()
         if student:
             user = db.query(User).filter(User.id == student.user_id).first()
             
-    # 3. Username check
-    if not user:
-        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+    # 4. students.register_no == local_part case-insensitive
+    if not user and local_part:
+        student = db.query(Student).filter(func.lower(Student.register_no) == local_part.lower()).first()
+        if student:
+            user = db.query(User).filter(User.id == student.user_id).first()
 
     if not user:
         # Log failure securely
@@ -179,14 +187,11 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
             email=identifier,
             action="otp_request",
             status="failure",
-            message="User not found for forgot-password identifier"
+            message=f"User not found for forgot-password identifier: {identifier}"
         )
         db.add(log)
         db.commit()
-        return {
-            "success": True,
-            "message": "If the account exists, an OTP has been sent to the registered email."
-        }
+        raise HTTPException(status_code=404, detail="No account found for this register number or email.")
 
     # Resolve email target based on user role
     if user.role == "student":
@@ -211,10 +216,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
         )
         db.add(log)
         db.commit()
-        return {
-            "success": True,
-            "message": "If the account exists, an OTP has been sent to the registered email."
-        }
+        raise HTTPException(status_code=404, detail="No account found for this register number or email.")
 
     # Generate 6-digit random OTP
     otp = f"{random.randint(100000, 999999)}"
@@ -300,23 +302,34 @@ async def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_
     if not identifier or not otp:
         raise HTTPException(status_code=400, detail="Identifier and OTP are required")
 
+    if "@" in identifier:
+        local_part = identifier.split("@")[0].strip()
+    else:
+        local_part = identifier
+
     user = None
     
-    # 1. Email check
+    # 1. users.email == identifier case-insensitive
     user = db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
     
-    # 2. Student register no check
+    # 2. users.username == identifier case-insensitive
+    if not user:
+        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+        
+    # 3. students.register_no == identifier case-insensitive
     if not user:
         student = db.query(Student).filter(func.lower(Student.register_no) == identifier.lower()).first()
         if student:
             user = db.query(User).filter(User.id == student.user_id).first()
             
-    # 3. Username check
-    if not user:
-        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+    # 4. students.register_no == local_part case-insensitive
+    if not user and local_part:
+        student = db.query(Student).filter(func.lower(Student.register_no) == local_part.lower()).first()
+        if student:
+            user = db.query(User).filter(User.id == student.user_id).first()
 
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid request parameters")
+        raise HTTPException(status_code=404, detail="No account found for this register number or email.")
 
     # Find the active OTP for this user
     db_otp = db.query(PasswordResetOTP).filter(
