@@ -33,6 +33,13 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password")
     SMTP_FROM: Optional[str] = Field(default=None, description="SMTP from email")
     
+    # Resend Config
+    EMAIL_PROVIDER: Optional[str] = Field(default="resend", description="Email provider (resend or smtp)")
+    RESEND_API_KEY: Optional[str] = Field(default=None, description="Resend API Key")
+    RESEND_FROM_EMAIL: str = Field(default="onboarding@resend.dev", description="Resend from email address")
+    RESEND_FROM_NAME: str = Field(default="Student360", description="Resend from name")
+    DEMO_OTP_EMAIL: Optional[str] = Field(default=None, description="Demo OTP email redirect target")
+    
     GEMINI_API_KEY: Optional[str] = Field(default=None, description="Gemini API Key")
     GEMINI_MODEL: str = Field(default="gemini-1.5-flash", description="Gemini Model")
     

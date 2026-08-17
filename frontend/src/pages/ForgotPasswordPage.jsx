@@ -214,7 +214,9 @@ export const ForgotPasswordPage = () => {
             {step === 2 && (
               <form onSubmit={handleVerifyOtp} className="space-y-6">
                 <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  We have dispatched a 6-digit One-Time Password (OTP) to your email account. Enter the OTP below to continue.
+                  {successMsg && successMsg.includes("demo email")
+                    ? "We have dispatched a 6-digit One-Time Password (OTP) to the verified demo email account. Enter the OTP below to continue."
+                    : "We have dispatched a 6-digit One-Time Password (OTP) to your email account. Enter the OTP below to continue."}
                 </p>
 
                 <div className="flex flex-col md:grid md:grid-cols-12 gap-2 md:gap-4 items-center">

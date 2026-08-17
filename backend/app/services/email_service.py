@@ -48,9 +48,12 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
                 "Content-Type": "application/json"
             }
             
+            demo_email = os.environ.get("DEMO_OTP_EMAIL") or getattr(settings, "DEMO_OTP_EMAIL", None)
+            target_to = demo_email if demo_email else recipient_email
+            
             payload = {
                 "from": f"{from_name} <{from_email}>",
-                "to": [recipient_email],
+                "to": [target_to],
                 "subject": "Student360 Password Reset OTP",
                 "html": html_content
             }
@@ -65,7 +68,10 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
             
             # Return success only if Resend returns 200 or 202
             if response.status_code in [200, 202]:
-                print(f"[EMAIL SERVICE - RESEND] Successfully sent OTP email to {recipient_email}")
+                if demo_email:
+                    print(f"[EMAIL SERVICE - RESEND] Successfully sent OTP email redirecting to demo target {demo_email} (intended: {recipient_email})")
+                else:
+                    print(f"[EMAIL SERVICE - RESEND] Successfully sent OTP email to {recipient_email}")
                 return True
             else:
                 # Do NOT log response details to avoid exposing secrets.
@@ -111,6 +117,9 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
             salutation = "Dear Student," if role == "student" else "Dear User,"
             signature = "Regards,\nStudent360 Team\nKarpagam College of Engineering"
             
+            demo_email = os.environ.get("DEMO_OTP_EMAIL") or getattr(settings, "DEMO_OTP_EMAIL", None)
+            target_to = demo_email if demo_email else recipient_email
+            
             msg = MIMEText(
                 f"{salutation}\n\n"
                 f"Your Student360 password reset OTP is: {otp}\n\n"
@@ -120,7 +129,7 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
             )
             msg["Subject"] = "Student360 Password Reset OTP"
             msg["From"] = smtp_from
-            msg["To"] = recipient_email
+            msg["To"] = target_to
             
             if use_ssl or smtp_port == 465:
                 server_class = smtplib.SMTP_SSL
@@ -133,7 +142,10 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
                 server.login(smtp_user, smtp_password)
                 server.send_message(msg)
                 
-            print(f"[EMAIL SERVICE] Successfully sent OTP email to {recipient_email}")
+            if demo_email:
+                print(f"[EMAIL SERVICE - SMTP] Successfully sent OTP email redirecting to demo target {demo_email} (intended: {recipient_email})")
+            else:
+                print(f"[EMAIL SERVICE] Successfully sent OTP email to {recipient_email}")
             return True
         except smtplib.SMTPAuthenticationError as e:
             raise Exception("SMTPAuthenticationError: Email authentication failed. Please check SMTP credentials.")

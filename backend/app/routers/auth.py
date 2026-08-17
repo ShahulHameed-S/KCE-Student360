@@ -302,6 +302,15 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
                 return f"{local[:2]}***{local[-1]}@{domain}"
             return f"{local[0]}***@{domain}"
 
+    import os
+    from app.config import settings
+    demo_email = os.environ.get("DEMO_OTP_EMAIL") or getattr(settings, "DEMO_OTP_EMAIL", None)
+    if demo_email:
+        return {
+            "success": True,
+            "message": "OTP sent to verified demo email for testing."
+        }
+
     masked_email = mask_email(email_to_use, user.role)
 
     return {

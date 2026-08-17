@@ -1787,11 +1787,13 @@ async def debug_email_config(
         
     resend_key = os.environ.get("RESEND_API_KEY") or getattr(settings, "RESEND_API_KEY", None)
     from_email = os.environ.get("RESEND_FROM_EMAIL") or getattr(settings, "RESEND_FROM_EMAIL", "onboarding@resend.dev")
+    demo_email = os.environ.get("DEMO_OTP_EMAIL") or getattr(settings, "DEMO_OTP_EMAIL", None)
     
     return {
         "email_provider": email_provider,
         "resend_api_key_present": bool(resend_key),
-        "resend_from_email_present": bool(from_email)
+        "resend_from_email_present": bool(from_email),
+        "demo_otp_email_present": bool(demo_email)
     }
 
 @router.post("/debug/send-test-email")
