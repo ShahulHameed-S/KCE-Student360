@@ -14,7 +14,8 @@ import {
   GraduationCap,
   Settings,
   User,
-  FileText
+  FileText,
+  History
 } from "lucide-react";
 
 export const Sidebar = () => {
@@ -92,6 +93,12 @@ export const Sidebar = () => {
       name: "System Overview",
       action: "system-overview",
       icon: Settings,
+      roles: ["admin"]
+    },
+    {
+      name: "Password Reset Logs",
+      action: "password-reset-logs",
+      icon: History,
       roles: ["admin"]
     },
     {

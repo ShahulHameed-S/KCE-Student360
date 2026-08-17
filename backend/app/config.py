@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = Field(default="http://localhost:11434", description="Ollama API base URL (dev fallback only)")
     OLLAMA_MODEL: str = Field(default="qwen2.5:1.5b", description="Ollama model string")
     
+    # SMTP / Email Config
+    ENVIRONMENT: str = Field(default="development", description="Deployment environment")
+    SMTP_HOST: Optional[str] = Field(default=None, description="SMTP host")
+    SMTP_PORT: Optional[int] = Field(default=None, description="SMTP port")
+    SMTP_USER: Optional[str] = Field(default=None, description="SMTP user")
+    SMTP_PASSWORD: Optional[str] = Field(default=None, description="SMTP password")
+    SMTP_FROM: Optional[str] = Field(default=None, description="SMTP from email")
+    
     GEMINI_API_KEY: Optional[str] = Field(default=None, description="Gemini API Key")
     GEMINI_MODEL: str = Field(default="gemini-1.5-flash", description="Gemini Model")
     

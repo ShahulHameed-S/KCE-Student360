@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 
 // Import all required pages
 import LoginPage from "./pages/LoginPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import FacultyDashboard from "./pages/FacultyDashboard";
 import StudentListPage from "./pages/StudentListPage";
 import StudentProfilePage from "./pages/StudentProfilePage";
@@ -23,6 +24,7 @@ function App() {
           <Routes>
             {/* Public Auth Page */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* Standalone Public Student Portfolio Page */}
             <Route path="/portfolio/:registerNo" element={<PortfolioPage />} />

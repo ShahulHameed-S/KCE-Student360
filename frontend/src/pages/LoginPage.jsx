@@ -186,7 +186,7 @@ export const LoginPage = () => {
 
               <button
                 type="button"
-                onClick={() => alert("Please contact the KCE college system administrator to reset password details.")}
+                onClick={() => navigate("/forgot-password")}
                 className="text-xs font-bold text-[#C76F2B] hover:text-[#A8561F] hover:underline"
               >
                 Forgot Password?

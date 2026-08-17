@@ -33,3 +33,15 @@ class TokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class ForgotPasswordRequest(BaseModel):
+    email_or_register_no: str
+
+class VerifyOtpRequest(BaseModel):
+    email_or_register_no: str
+    otp: str
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
+    new_password: str
+

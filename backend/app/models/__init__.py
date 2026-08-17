@@ -7,6 +7,7 @@ from app.models.resume import Resume
 from app.models.profile import UserProfile, StudentAbout
 from app.models.portfolio import PortfolioCustomization
 from app.models.ai_summary import AISummary
+from app.models.otp_models import PasswordResetOTP, PasswordResetLog
 
 # All models imported and bound to Base
 __all__ = [
@@ -25,5 +26,7 @@ __all__ = [
     "UserProfile",
     "StudentAbout",
     "PortfolioCustomization",
-    "AISummary"
+    "AISummary",
+    "PasswordResetOTP",
+    "PasswordResetLog"
 ]

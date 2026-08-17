@@ -96,5 +96,23 @@ export const authService = {
     } catch (error) {
       return { success: true, message: "Logged out locally" };
     }
+  },
+
+  forgotPassword: async (emailOrRegisterNo) => {
+    const response = await api.post("/auth/forgot-password", { email_or_register_no: emailOrRegisterNo });
+    return response.data;
+  },
+
+  verifyResetOtp: async (emailOrRegisterNo, otp) => {
+    const response = await api.post("/auth/verify-reset-otp", { email_or_register_no: emailOrRegisterNo, otp });
+    return response.data;
+  },
+
+  resetPassword: async (resetToken, newPassword) => {
+    const response = await api.post("/auth/reset-password", {
+      reset_token: resetToken,
+      new_password: newPassword
+    });
+    return response.data;
   }
 };

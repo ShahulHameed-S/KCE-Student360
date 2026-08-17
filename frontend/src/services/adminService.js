@@ -77,4 +77,19 @@ export const assignAllStudentsToMentor = async (mentorEmail) => {
   return response.data;
 };
 
+export const resetStudentPassword = async (registerNo) => {
+  const response = await api.post(`/admin/students/${registerNo}/reset-password`);
+  return response.data;
+};
+
+export const impersonateStudent = async (registerNo) => {
+  const response = await api.post(`/admin/impersonate/${registerNo}`);
+  return response.data;
+};
+
+export const getPasswordResetLogs = async () => {
+  const response = await api.get("/admin/password-reset-logs");
+  return response.data;
+};
+
 

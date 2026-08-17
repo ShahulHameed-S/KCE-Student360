@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_active_user
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse, UserAuthResponse, RefreshTokenRequest
+from app.schemas.auth import LoginRequest, TokenResponse, UserAuthResponse, RefreshTokenRequest, ForgotPasswordRequest, VerifyOtpRequest, ResetPasswordRequest
 from app.services.auth_service import authenticate_user, create_user_auth_payload
 from app.utils.security import create_access_token, create_refresh_token, decode_token
 from app.utils.response_utils import error_response
@@ -134,4 +134,354 @@ async def logout():
     return {
         "success": True,
         "message": "Logged out successfully"
+    }
+
+@router.post("/forgot-password")
+async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Step 1 of forgot password. Looks up user by register no or email.
+    Generates OTP, hashes it, saves to DB, sends OTP email, and logs action.
+    """
+    import random
+    from datetime import datetime, timedelta
+    from app.models.otp_models import PasswordResetOTP, PasswordResetLog
+    from app.models.student import Student
+    from app.services.email_service import send_otp_email
+    from app.utils.security import get_password_hash
+    from sqlalchemy import func
+
+    identifier = payload.email_or_register_no.strip()
+    if not identifier:
+        return {
+            "success": True,
+            "message": "If the account exists, an OTP has been sent to the registered email."
+        }
+
+    user = None
+    
+    # 1. Email check
+    user = db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
+    
+    # 2. Student register number check
+    if not user:
+        student = db.query(Student).filter(func.lower(Student.register_no) == identifier.lower()).first()
+        if student:
+            user = db.query(User).filter(User.id == student.user_id).first()
+            
+    # 3. Username check
+    if not user:
+        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+
+    if not user:
+        # Log failure securely
+        log = PasswordResetLog(
+            user_id=None,
+            email=identifier,
+            action="otp_request",
+            status="failure",
+            message="User not found for forgot-password identifier"
+        )
+        db.add(log)
+        db.commit()
+        return {
+            "success": True,
+            "message": "If the account exists, an OTP has been sent to the registered email."
+        }
+
+    # Resolve email target based on user role
+    if user.role == "student":
+        student = db.query(Student).filter(Student.user_id == user.id).first()
+        if student and student.register_no:
+            email_to_use = f"{student.register_no.strip().replace(' ', '')}@kce.ac.in"
+        else:
+            email_to_use = f"{user.username.strip().replace(' ', '')}@kce.ac.in"
+    else:
+        email_to_use = user.email.strip() if user.email else None
+
+    if not email_to_use:
+        # Log failure securely (no email found)
+        log = PasswordResetLog(
+            user_id=user.id,
+            email=None,
+            register_no=user.username if user.role == "student" else None,
+            role=user.role,
+            action="otp_request",
+            status="failure",
+            message="No registered email address exists for this user account"
+        )
+        db.add(log)
+        db.commit()
+        return {
+            "success": True,
+            "message": "If the account exists, an OTP has been sent to the registered email."
+        }
+
+    # Generate 6-digit random OTP
+    otp = f"{random.randint(100000, 999999)}"
+    otp_hash = get_password_hash(otp)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    # Deactivate previous active OTPs for safety
+    db.query(PasswordResetOTP).filter(
+        PasswordResetOTP.user_id == user.id,
+        PasswordResetOTP.is_used == False
+    ).update({"is_used": True})
+
+    # Save OTP to database
+    db_otp = PasswordResetOTP(
+        user_id=user.id,
+        email=email_to_use,
+        otp_hash=otp_hash,
+        expires_at=expires_at,
+        is_used=False,
+        attempts=0
+    )
+    db.add(db_otp)
+
+    # Log action
+    log = PasswordResetLog(
+        user_id=user.id,
+        email=email_to_use,
+        register_no=user.username if user.role == "student" else None,
+        role=user.role,
+        action="otp_request",
+        status="success",
+        message="OTP generated and reset email transmission triggered"
+    )
+    db.add(log)
+    db.commit()
+
+    # Send plain text OTP via email service (will handle fallback in development)
+    try:
+        send_otp_email(email_to_use, otp)
+    except Exception as e:
+        print(f"[ERROR] Failed to send email: {str(e)}")
+        import os
+        if os.environ.get("ENVIRONMENT", "development").lower() == "production":
+            print(f"[PRODUCTION ERROR] Email transmission failed: {str(e)}")
+
+    def mask_email(email_str: str, role: str) -> str:
+        if not email_str or "@" not in email_str:
+            return email_str
+        local, domain = email_str.split("@", 1)
+        if role == "student":
+            if len(local) > 3:
+                return f"{local[:-3]}***@{domain}"
+            return f"{local}***@{domain}"
+        else:
+            if len(local) > 3:
+                return f"{local[:2]}***{local[-1]}@{domain}"
+            return f"{local[0]}***@{domain}"
+
+    masked_email = mask_email(email_to_use, user.role)
+
+    return {
+        "success": True,
+        "message": f"OTP sent to {masked_email}"
+    }
+
+@router.post("/verify-reset-otp")
+async def verify_reset_otp(payload: VerifyOtpRequest, db: Session = Depends(get_db)):
+    """
+    Step 2 of forgot password. Verifies 6-digit OTP, increments attempts on failure,
+    and returns a short-lived reset token with purpose claim.
+    """
+    from datetime import datetime
+    from app.models.otp_models import PasswordResetOTP, PasswordResetLog
+    from app.models.student import Student
+    from app.utils.security import verify_password
+    from sqlalchemy import func
+    from jose import jwt
+    from app.config import settings
+
+    identifier = payload.email_or_register_no.strip()
+    otp = payload.otp.strip()
+
+    if not identifier or not otp:
+        raise HTTPException(status_code=400, detail="Identifier and OTP are required")
+
+    user = None
+    
+    # 1. Email check
+    user = db.query(User).filter(func.lower(User.email) == identifier.lower()).first()
+    
+    # 2. Student register no check
+    if not user:
+        student = db.query(Student).filter(func.lower(Student.register_no) == identifier.lower()).first()
+        if student:
+            user = db.query(User).filter(User.id == student.user_id).first()
+            
+    # 3. Username check
+    if not user:
+        user = db.query(User).filter(func.lower(User.username) == identifier.lower()).first()
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid request parameters")
+
+    # Find the active OTP for this user
+    db_otp = db.query(PasswordResetOTP).filter(
+        PasswordResetOTP.user_id == user.id,
+        PasswordResetOTP.is_used == False,
+        PasswordResetOTP.expires_at > datetime.utcnow()
+    ).order_by(PasswordResetOTP.created_at.desc()).first()
+
+    if not db_otp:
+        log = PasswordResetLog(
+            user_id=user.id,
+            email=user.email,
+            register_no=user.username if user.role == "student" else None,
+            role=user.role,
+            action="otp_verified",
+            status="failure",
+            message="No active OTP found or OTP expired"
+        )
+        db.add(log)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Reset code is invalid or has expired")
+
+    # Limit attempts
+    if db_otp.attempts >= 5:
+        db_otp.is_used = True
+        db.commit()
+        log = PasswordResetLog(
+            user_id=user.id,
+            email=user.email,
+            register_no=user.username if user.role == "student" else None,
+            role=user.role,
+            action="otp_verified",
+            status="failure",
+            message="OTP locked due to too many failed attempts"
+        )
+        db.add(log)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Too many failed attempts. Please request a new code.")
+
+    # Verify the plain text OTP against stored OTP hash
+    if not verify_password(otp, db_otp.otp_hash):
+        db_otp.attempts += 1
+        if db_otp.attempts >= 5:
+            db_otp.is_used = True
+        
+        log = PasswordResetLog(
+            user_id=user.id,
+            email=user.email,
+            register_no=user.username if user.role == "student" else None,
+            role=user.role,
+            action="otp_verified",
+            status="failure",
+            message=f"Incorrect OTP entered. Attempt {db_otp.attempts}"
+        )
+        db.add(log)
+        db.commit()
+        
+        if db_otp.attempts >= 5:
+            raise HTTPException(status_code=400, detail="Too many failed attempts. Please request a new code.")
+        raise HTTPException(status_code=400, detail="Reset code is incorrect")
+
+    # Generate a secure short-lived reset token with specific purpose claim
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    token_data = {
+        "sub": str(user.id),
+        "email": user.email,
+        "purpose": "password_reset",
+        "type": "reset",
+        "exp": expire
+    }
+    reset_token = jwt.encode(token_data, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+    log = PasswordResetLog(
+        user_id=user.id,
+        email=user.email,
+        register_no=user.username if user.role == "student" else None,
+        role=user.role,
+        action="otp_verified",
+        status="success",
+        message="OTP verified successfully. Temporary reset token issued."
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "reset_token": reset_token
+    }
+
+@router.post("/reset-password")
+async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Step 3 of forgot password. Validates reset token, ensures purpose matches,
+    updates user password hash, and marks database OTP as used.
+    """
+    from datetime import datetime
+    from app.models.otp_models import PasswordResetOTP, PasswordResetLog
+    from app.utils.security import get_password_hash, decode_token
+    from jose import JWTError
+
+    try:
+        token_data = decode_token(payload.reset_token)
+        
+        if token_data.get("purpose") != "password_reset":
+            raise JWTError("Invalid token purpose")
+            
+        user_id = token_data.get("sub")
+        if not user_id:
+            raise JWTError("Sub missing")
+            
+    except JWTError as e:
+        log = PasswordResetLog(
+            user_id=None,
+            action="otp_password_reset_failure",
+            status="failure",
+            message=f"JWT verification failed: {str(e)}"
+        )
+        db.add(log)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token is invalid or expired"
+        )
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        log = PasswordResetLog(
+            user_id=int(user_id),
+            action="otp_password_reset_failure",
+            status="failure",
+            message="User associated with token not found"
+        )
+        db.add(log)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User not found"
+        )
+
+    # Hash new password
+    hashed_password = get_password_hash(payload.new_password)
+    user.password_hash = hashed_password
+    
+    # Mark user's active OTP as used
+    db.query(PasswordResetOTP).filter(
+        PasswordResetOTP.user_id == user.id,
+        PasswordResetOTP.is_used == False
+    ).update({
+        "is_used": True,
+        "used_at": datetime.utcnow()
+    })
+    
+    log = PasswordResetLog(
+        user_id=user.id,
+        email=user.email,
+        register_no=user.username if user.role == "student" else None,
+        role=user.role,
+        action="otp_password_reset_success",
+        status="success",
+        message="Password reset successful. Account access restored."
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "message": "Password updated successfully."
     }

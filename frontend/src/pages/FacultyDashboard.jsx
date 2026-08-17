@@ -35,7 +35,9 @@ import {
   FileText,
   Copy,
   Check,
-  Save
+  Save,
+  KeyRound,
+  LogIn
 } from "lucide-react";
 import { portfolioCustomizationService, validatePortfolioUrl } from "../services/portfolioCustomizationService";
 
@@ -50,7 +52,7 @@ import { profileService } from "../services/profileService";
 import { resumeService } from "../services/resumeService";
 import { uploadService } from "../services/uploadService";
 import { adminUploadService } from "../services/adminUploadService";
-import { getAdminStudents, getAdminFaculty, getAdminMentors, getAdminUsers, getAdminCounts, assignStudentsToMentor, uploadMentorAssignmentsExcel } from "../services/adminService";
+import { getAdminStudents, getAdminFaculty, getAdminMentors, getAdminUsers, getAdminCounts, assignStudentsToMentor, uploadMentorAssignmentsExcel, resetStudentPassword, impersonateStudent, getPasswordResetLogs } from "../services/adminService";
 import { safeFixed, safePercent } from "../utils/formatters";
 import {
   AddStudentModal,
@@ -1343,6 +1345,87 @@ export const FacultyDashboard = () => {
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState("");
 
+  // Admin password reset and impersonation state variables
+  const [tempPasswordModalOpen, setTempPasswordModalOpen] = useState(false);
+  const [resetStudentName, setResetStudentName] = useState("");
+  const [tempPasswordValue, setTempPasswordValue] = useState("");
+  const [impersonatingLoader, setImpersonatingLoader] = useState(false);
+  
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditLogsError, setAuditLogsError] = useState("");
+
+  const handleAdminResetPassword = async (student) => {
+    if (!window.confirm(`Are you sure you want to reset the password for ${student.name} (${student.register_no})?`)) {
+      return;
+    }
+    try {
+      const res = await resetStudentPassword(student.register_no);
+      if (res.success && res.temporary_password) {
+        setResetStudentName(student.name);
+        setTempPasswordValue(res.temporary_password);
+        setTempPasswordModalOpen(true);
+      } else {
+        alert("Reset failed: unexpected response");
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message || "Failed to reset student password.");
+    }
+  };
+
+  const handleAdminImpersonateStudent = async (student) => {
+    if (!window.confirm(`Are you sure you want to view as student ${student.name} (${student.register_no})?`)) {
+      return;
+    }
+    setImpersonatingLoader(true);
+    try {
+      const res = await impersonateStudent(student.register_no);
+      if (res.access_token && res.user) {
+        const currentToken = localStorage.getItem("access_token") || localStorage.getItem("token");
+        const currentUser = localStorage.getItem("currentUser") || localStorage.getItem("user");
+        
+        sessionStorage.setItem("original_admin_token", currentToken);
+        sessionStorage.setItem("original_admin_user", currentUser);
+        sessionStorage.setItem("impersonated_student", JSON.stringify(res.student || { register_no: student.register_no, name: student.name }));
+
+        localStorage.setItem("original_admin_token", currentToken);
+        localStorage.setItem("original_admin_user", currentUser);
+
+        localStorage.setItem("access_token", res.access_token);
+        localStorage.setItem("token", res.access_token);
+        localStorage.setItem("currentUser", JSON.stringify(res.user));
+        localStorage.setItem("user", JSON.stringify(res.user));
+
+        window.location.href = "/dashboard";
+      } else {
+        alert("Impersonation failed: missing access token");
+      }
+    } catch (err) {
+      alert(err.response?.data?.detail || err.message || "Failed to start student impersonation session.");
+    } finally {
+      setImpersonatingLoader(false);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    setAuditLogsLoading(true);
+    setAuditLogsError("");
+    try {
+      const logs = await getPasswordResetLogs();
+      setAuditLogs(logs);
+    } catch (err) {
+      setAuditLogsError(err.response?.data?.detail || err.message || "Failed to retrieve audit logs.");
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.role === "admin" && adminSection === "password-reset-logs") {
+      fetchAuditLogs();
+    }
+  }, [adminSection, user]);
+
   const renderStatCard = (title, value, icon, description, trend, trendType, onIconClick) => {
     if (loading) {
       return (
@@ -1740,7 +1823,8 @@ export const FacultyDashboard = () => {
         "manage-faculty",
         "manage-mentors",
         "assign-mentor",
-        "system-overview"
+        "system-overview",
+        "password-reset-logs"
       ].includes(action)) {
         setAdminSection(action);
         setActiveModal(null);
@@ -4937,6 +5021,20 @@ export const FacultyDashboard = () => {
                                   <Edit2 size={13} />
                                 </button>
                                 <button 
+                                  onClick={() => handleAdminResetPassword(s)} 
+                                  title="Reset Password"
+                                  className="p-1 text-slate-700 hover:bg-slate-100 border border-slate-300 flex items-center justify-center cursor-pointer animate-fade-in"
+                                >
+                                  <KeyRound size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => handleAdminImpersonateStudent(s)} 
+                                  title="Login as Student"
+                                  className="p-1 text-[#C76F2B] hover:bg-[#C76F2B]/10 border border-[#C76F2B]/20 flex items-center justify-center cursor-pointer animate-fade-in"
+                                >
+                                  <LogIn size={13} />
+                                </button>
+                                <button 
                                   onClick={() => { setSelectedItem(s); setActiveModal('confirmRemoveStudent'); }} 
                                   title="Remove Student"
                                   className="p-1 text-red-650 hover:bg-red-50 border border-red-205 flex items-center justify-center animate-fade-in cursor-pointer"
@@ -5466,6 +5564,105 @@ export const FacultyDashboard = () => {
           </div>
         )}
 
+        {adminSection === "password-reset-logs" && (
+          <div className="space-y-6 animate-fade-in">
+            <div className="bg-[#163941] p-6 rounded-none text-white border border-[#D1D5DB]">
+              <h1 className="text-xl font-extrabold uppercase tracking-wider text-white">Password Reset & Access Logs</h1>
+              <p className="text-xs text-[#E5E5E5] font-semibold mt-1.5 leading-relaxed">
+                Review audit trails for password resets, verification attempts, and student impersonation events.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 border border-[#D1D5DB] rounded-none space-y-4">
+              <div className="flex justify-between items-center pb-3 border-b border-[#E5E5E5]">
+                <h3 className="text-xs font-extrabold text-[#214C55] uppercase tracking-wider">Audit Transaction Log</h3>
+                <button 
+                  onClick={fetchAuditLogs} 
+                  disabled={auditLogsLoading}
+                  className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider disabled:opacity-50 cursor-pointer transition-colors"
+                >
+                  {auditLogsLoading ? "Refreshing..." : "Refresh Logs"}
+                </button>
+              </div>
+
+              {auditLogsLoading ? (
+                <div className="p-8 text-center text-xs font-bold text-slate-500">
+                  Loading transaction logs from database...
+                </div>
+              ) : auditLogsError ? (
+                <div className="p-8 text-center text-xs font-bold text-rose-600">
+                  {auditLogsError}
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs font-bold text-slate-500">
+                  No log entries recorded.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-[#D1D5DB]">
+                  <table className="w-full text-left border-collapse bg-white">
+                    <thead>
+                      <tr className="bg-[#E5E5E5] border-b border-[#D1D5DB] text-[10px] font-extrabold text-[#214C55] uppercase tracking-wider">
+                        <th className="py-2.5 px-4">Timestamp</th>
+                        <th className="py-2.5 px-4">Event Type</th>
+                        <th className="py-2.5 px-4">Target User</th>
+                        <th className="py-2.5 px-4">Performed By</th>
+                        <th className="py-2.5 px-4">Status</th>
+                        <th className="py-2.5 px-4">Details</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5E5E5] text-xs font-bold text-[#111827]">
+                      {auditLogs.map((log) => {
+                        const dateFormatted = new Date(log.created_at).toLocaleString();
+                        let eventBadgeColor = "bg-slate-100 text-slate-800 border-slate-200";
+                        if (log.action === "impersonation_started") {
+                          eventBadgeColor = "bg-amber-50 text-amber-800 border-amber-200";
+                        } else if (log.action.includes("success")) {
+                          eventBadgeColor = "bg-green-50 text-green-800 border-green-200";
+                        } else if (log.action.includes("failure")) {
+                          eventBadgeColor = "bg-rose-50 text-rose-800 border-rose-200";
+                        }
+
+                        return (
+                          <tr key={log.id} className="hover:bg-[#F7F7F7] transition-colors">
+                            <td className="py-2.5 px-4 text-slate-500 font-semibold">{dateFormatted}</td>
+                            <td className="py-2.5 px-4">
+                              <span className={`px-2 py-0.5 text-[9px] font-black uppercase border ${eventBadgeColor}`}>
+                                {log.action.replace("_", " ")}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4">
+                              {log.register_no ? (
+                                <span className="text-[#C76F2B] font-extrabold">{log.register_no}</span>
+                              ) : log.email ? (
+                                <span className="text-[#214C55] font-semibold">{log.email}</span>
+                              ) : (
+                                <span className="text-slate-400 font-normal">N/A</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-600">
+                              {log.admin_id ? `Admin (ID: ${log.admin_id})` : "User / System"}
+                            </td>
+                            <td className="py-2.5 px-4">
+                              <span className={`px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                                log.status === "success" ? "text-green-700 bg-green-50 border border-green-100" : "text-rose-700 bg-rose-50 border border-rose-100"
+                              }`}>
+                                {log.status}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-4 font-semibold text-slate-650 max-w-xs truncate" title={log.message}>
+                              {log.message}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {adminSection === "profile" && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -5614,6 +5811,63 @@ export const FacultyDashboard = () => {
             }
           }}
         />
+
+        {tempPasswordModalOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[1000] p-4 animate-fade-in">
+            <div className="bg-white border border-[#D1D5DB] w-full max-w-md shadow-2xl rounded-none overflow-hidden animate-scale-up">
+              <div className="bg-[#C76F2B] text-white px-5 py-3 flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-1.5">
+                  <KeyRound size={16} /> Temporary Password Generated
+                </h3>
+                <button 
+                  onClick={() => setTempPasswordModalOpen(false)}
+                  className="text-white hover:text-slate-100 bg-transparent border-none text-base font-bold cursor-pointer"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="p-6 space-y-4 text-xs font-semibold text-slate-700">
+                <div className="bg-amber-50 border border-amber-200 p-3.5 text-amber-800 text-xs font-semibold leading-relaxed">
+                  <strong>IMPORTANT SECURITY NOTE:</strong> This password is shown exactly once. It has been hashed with bcrypt and saved to the database. Make sure to copy this password now.
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-extrabold text-[#214C55] tracking-wider block">Student Name</span>
+                  <span className="text-sm font-black text-slate-800 block">{resetStudentName}</span>
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] uppercase font-extrabold text-[#214C55] tracking-wider block">Temporary Password</span>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={tempPasswordValue}
+                      className="flex-1 bg-slate-100 border border-[#D1D5DB] px-3 py-2 text-sm font-mono font-bold text-center text-[#C76F2B] select-all focus:outline-none"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(tempPasswordValue);
+                        alert("Temporary password copied to clipboard.");
+                      }}
+                      className="px-4 bg-[#214C55] text-white text-xs font-bold uppercase tracking-wider hover:bg-[#163941] cursor-pointer rounded-none transition-colors"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-50 px-5 py-3 border-t border-[#E5E5E5] flex justify-end">
+                <button 
+                  type="button"
+                  onClick={() => setTempPasswordModalOpen(false)}
+                  className="px-4 py-2 bg-[#C76F2B] hover:bg-[#A8561F] text-white text-xs font-bold uppercase tracking-wider cursor-pointer rounded-none transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

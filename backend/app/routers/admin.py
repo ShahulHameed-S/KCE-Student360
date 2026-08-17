@@ -484,9 +484,8 @@ async def upload_students(
                 from sqlalchemy import func, and_
                 student = db.query(Student).filter(func.lower(Student.register_no) == func.lower(register_no)).first()
                 
-                email = raw_email
-                if not email:
-                    email = clean_and_generate_email(name, register_no, db)
+                clean_reg = register_no.replace(" ", "").strip()
+                email = f"{clean_reg}@kce.ac.in"
                 
                 user = None
                 if student and student.user_id:
@@ -510,6 +509,7 @@ async def upload_students(
                     db.flush()
                 else:
                     user.username = register_no
+                    user.email = email
                     user.role = "student"
                     user.is_active = True
                     db.flush()
@@ -1485,4 +1485,276 @@ async def admin_upload_scores(
     """Admin score upload handler alias."""
     file_bytes = await file.read()
     return process_scores_excel(db, file_bytes, current_user.id)
+
+
+@router.post("/students/{register_no}/reset-password")
+async def admin_reset_student_password(
+    register_no: str,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Admin resets a student's password to a temporary password.
+    Temporary password is shown exactly once in the response.
+    It is hashed with bcrypt before saving.
+    """
+    import secrets
+    import string
+    from app.models.otp_models import PasswordResetLog
+    from app.models.student import Student
+    from app.utils.security import get_password_hash
+    from sqlalchemy import func
+
+    # Find student
+    student = db.query(Student).filter(func.lower(Student.register_no) == register_no.lower()).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Find user
+    user = db.query(User).filter(User.id == student.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found for student")
+
+    # Generate temporary password
+    alphabet = string.ascii_letters + string.digits
+    temp_pass = ''.join(secrets.choice(alphabet) for i in range(10))
+
+    # Hash and save password
+    user.password_hash = get_password_hash(temp_pass)
+    
+    # Log reset
+    log = PasswordResetLog(
+        user_id=user.id,
+        admin_id=current_user.id,
+        email=user.email,
+        register_no=student.register_no,
+        role=user.role,
+        action="admin_password_reset",
+        status="success",
+        message=f"Password reset by administrator {current_user.email}"
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "temporary_password": temp_pass,
+        "message": "Password reset successfully. Copy this password now. It will not be shown again."
+    }
+
+
+@router.post("/impersonate/{register_no}")
+async def admin_impersonate_student(
+    register_no: str,
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Admin impersonates a student and logs in as that student.
+    Generates a 15-minute token with student role, containing impersonation details.
+    """
+    from datetime import timedelta
+    from app.models.otp_models import PasswordResetLog
+    from app.models.student import Student
+    from app.services.auth_service import create_user_auth_payload
+    from app.utils.security import create_access_token, create_refresh_token
+    from sqlalchemy import func
+
+    # Find student
+    student = db.query(Student).filter(func.lower(Student.register_no) == register_no.lower()).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Find user
+    user = db.query(User).filter(User.id == student.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User account not found for student")
+
+    # Generate student token payload with impersonation claims
+    # Expiry is 15 minutes as per safety requirements
+    token_data = {
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "impersonation": True,
+        "impersonated_by_admin_id": current_user.id,
+        "original_admin_email": current_user.email
+    }
+
+    # Generate token with 15 min expiry
+    access_token = create_access_token(data=token_data, expires_delta=timedelta(minutes=15))
+    refresh_token = create_refresh_token(data=token_data, expires_delta=timedelta(minutes=15))
+    user_payload = create_user_auth_payload(user, db)
+
+    # Log impersonation
+    log = PasswordResetLog(
+        user_id=user.id,
+        admin_id=current_user.id,
+        email=user.email,
+        register_no=student.register_no,
+        role=user.role,
+        action="admin_impersonation_started",
+        status="success",
+        message=f"Administrator {current_user.email} started impersonation session"
+    )
+    db.add(log)
+    db.commit()
+
+    return {
+        "success": True,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in_minutes": 15,
+        "impersonation": True,
+        "student": {
+            "register_no": student.register_no,
+            "name": student.name
+        },
+        "user": user_payload
+    }
+
+
+@router.get("/password-reset-logs")
+async def get_password_reset_logs(
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Get audit logs for password resets and impersonation.
+    """
+    from app.models.otp_models import PasswordResetLog
+    
+    logs = db.query(PasswordResetLog).order_by(PasswordResetLog.created_at.desc()).limit(100).all()
+    
+    result = []
+    for log in logs:
+        result.append({
+            "id": log.id,
+            "user_id": log.user_id,
+            "admin_id": log.admin_id,
+            "email": log.email,
+            "register_no": log.register_no,
+            "role": log.role,
+            "action": log.action,
+            "status": log.status,
+            "message": log.message,
+            "created_at": log.created_at.isoformat() if log.created_at else None
+        })
+    return result
+
+
+@router.post("/students/update-register-emails")
+async def update_student_register_emails(
+    current_user: User = Depends(RoleRequired(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates all existing student user emails to register_no@kce.ac.in.
+    Checks for duplicates/conflicts first and skips them, reporting conflicts.
+    """
+    from app.models.student import Student
+    from app.models.user import User, UserProfile
+    from sqlalchemy import func
+    
+    # 1. Fetch all students
+    students = db.query(Student).all()
+    
+    # 2. Check for duplicate register numbers in the students table
+    reg_counts = {}
+    for s in students:
+        if s.register_no:
+            reg = s.register_no.strip().replace(" ", "")
+            reg_counts[reg] = reg_counts.get(reg, 0) + 1
+            
+    conflicts = []
+    updated_count = 0
+    skipped_count = 0
+    errors = []
+    
+    for student in students:
+        if not student.register_no:
+            skipped_count += 1
+            continue
+            
+        clean_reg = student.register_no.strip().replace(" ", "")
+        
+        # Check if this register number is duplicate in the students table
+        if reg_counts.get(clean_reg, 0) > 1:
+            conflicts.append({
+                "register_no": student.register_no,
+                "reason": "Duplicate register number found in database"
+            })
+            skipped_count += 1
+            continue
+            
+        if not student.user_id:
+            skipped_count += 1
+            continue
+            
+        user = db.query(User).filter(User.id == student.user_id).first()
+        if not user:
+            skipped_count += 1
+            continue
+            
+        if user.role != "student":
+            skipped_count += 1
+            continue
+            
+        new_email = f"{clean_reg}@kce.ac.in"
+        
+        # Check if the email is already set correctly
+        if user.email == new_email and user.username == clean_reg:
+            # Update student.email and UserProfile just in case they are out of sync
+            student.email = new_email
+            up = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+            if up:
+                up.email = new_email
+            skipped_count += 1
+            continue
+            
+        # Check if another user already has this email (email conflict)
+        existing_with_email = db.query(User).filter(
+            (func.lower(User.email) == new_email.lower()) & (User.id != user.id)
+        ).first()
+        if existing_with_email:
+            conflicts.append({
+                "register_no": student.register_no,
+                "reason": f"Email conflict: email {new_email} is already used by another user (ID: {existing_with_email.id})"
+            })
+            skipped_count += 1
+            continue
+            
+        try:
+            # Update user
+            user.email = new_email
+            user.username = clean_reg
+            
+            # Update student
+            student.email = new_email
+            
+            # Update UserProfile
+            up = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+            if up:
+                up.email = new_email
+                
+            db.flush()
+            updated_count += 1
+        except Exception as e:
+            db.rollback()
+            errors.append({
+                "register_no": student.register_no,
+                "error": str(e)
+            })
+            skipped_count += 1
+            
+    db.commit()
+    
+    return {
+        "success": True,
+        "updated": updated_count,
+        "skipped": skipped_count,
+        "conflicts": conflicts,
+        "errors": errors
+    }
 

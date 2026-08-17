@@ -10,6 +10,29 @@ export const Navbar = ({ title }) => {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  const originalAdminToken = sessionStorage.getItem("original_admin_token") || localStorage.getItem("original_admin_token");
+
+  const handleEndImpersonation = () => {
+    const adminToken = sessionStorage.getItem("original_admin_token") || localStorage.getItem("original_admin_token");
+    const adminUser = sessionStorage.getItem("original_admin_user") || localStorage.getItem("original_admin_user");
+    
+    if (adminToken && adminUser) {
+      localStorage.setItem("access_token", adminToken);
+      localStorage.setItem("token", adminToken);
+      localStorage.setItem("currentUser", adminUser);
+      localStorage.setItem("user", adminUser);
+      
+      sessionStorage.removeItem("original_admin_token");
+      sessionStorage.removeItem("original_admin_user");
+      sessionStorage.removeItem("impersonated_student");
+      localStorage.removeItem("original_admin_token");
+      localStorage.removeItem("original_admin_user");
+      
+      // Redirect back to admin dashboard
+      window.location.href = "/dashboard";
+    }
+  };
+
   // Escape key handler to close dropdown
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -79,94 +102,111 @@ export const Navbar = ({ title }) => {
   });
 
   return (
-    <header className="bg-white border-b border-[#D1D5DB] h-14 px-6 flex items-center justify-between z-10 shadow-none">
-      {/* Title */}
-      <div>
-        <h2 className="text-sm font-extrabold text-[#214C55] uppercase tracking-wider">{title || "Student360"}</h2>
-      </div>
-
-      {/* Right side items */}
-      <div className="flex items-center space-x-6">
-
-
-        {/* Date display */}
-        <div className="hidden md:flex items-center space-x-2 text-[#6B7280] text-xs font-semibold">
-          <Calendar size={13} className="text-[#6B7280]" />
-          <span>{formattedDate}</span>
+    <>
+      {originalAdminToken && (
+        <div className="bg-[#C76F2B] text-white text-xs font-bold py-2 px-6 flex justify-between items-center w-full animate-fade-in">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+            <span>You are viewing as student <span className="font-extrabold underline">{user?.name}</span> ({user?.register_no || user?.registerNo || "N/A"}).</span>
+          </div>
+          <button 
+            type="button"
+            onClick={handleEndImpersonation} 
+            className="bg-white text-[#C76F2B] hover:bg-[#F7F7F7] px-3.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-none border border-[#C76F2B] cursor-pointer transition-colors shadow-sm"
+          >
+            End Impersonation
+          </button>
+        </div>
+      )}
+      <header className="bg-white border-b border-[#D1D5DB] h-14 px-6 flex items-center justify-between z-10 shadow-none">
+        {/* Title */}
+        <div>
+          <h2 className="text-sm font-extrabold text-[#214C55] uppercase tracking-wider">{title || "Student360"}</h2>
         </div>
 
-        {/* Profile indicator with dropdown */}
-        <div className="flex items-center space-x-3 border-l border-[#D1D5DB] pl-6 relative profile-dropdown-container">
-          <button
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="flex items-center space-x-3 focus:outline-none cursor-pointer text-left bg-transparent border-none p-0"
-          >
-            <div className="text-right">
-              <p className="text-xs font-black text-[#111827]">{user?.name || "Guest User"}</p>
-              <p className="text-[9px] text-[#C76F2B] uppercase font-extrabold tracking-widest leading-none mt-0.5">
-                {user?.role?.replace("_", " ")}
-              </p>
-            </div>
-            
-            {avatarSrc && !imgError ? (
-              <img
-                src={avatarSrc}
-                alt={user?.name || user?.username || "User"}
-                className="w-8 h-8 rounded-none object-cover border border-[#D1D5DB]"
-                onError={() => setImgError(true)}
-              />
-            ) : (
-              <div className="w-8 h-8 rounded-none bg-[#E5E5E5] border border-[#D1D5DB] flex items-center justify-center text-[#214C55] font-black text-xs">
-                {getInitials(user?.name)}
-              </div>
-            )}
-          </button>
+        {/* Right side items */}
+        <div className="flex items-center space-x-6">
 
-          {/* Dropdown Menu */}
-          {dropdownOpen && (
-            <div className="absolute right-0 top-11 mt-2 w-56 bg-white border border-[#D1D5DB] shadow-lg py-2 z-50 rounded-none text-left">
-              {/* Mini user info */}
-              <div className="px-4 py-2.5 border-b border-[#E5E5E5] flex items-center space-x-3">
-                {avatarSrc && !imgError ? (
-                  <img
-                    src={avatarSrc}
-                    alt={user?.name || user?.username || "User"}
-                    className="w-10 h-10 rounded-full object-cover border border-[#D1D5DB]"
-                    onError={() => setImgError(true)}
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#214C55] text-white flex items-center justify-center text-sm font-black">
-                    {getInitials(user?.name)}
+
+          {/* Date display */}
+          <div className="hidden md:flex items-center space-x-2 text-[#6B7280] text-xs font-semibold">
+            <Calendar size={13} className="text-[#6B7280]" />
+            <span>{formattedDate}</span>
+          </div>
+
+          {/* Profile indicator with dropdown */}
+          <div className="flex items-center space-x-3 border-l border-[#D1D5DB] pl-6 relative profile-dropdown-container">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="flex items-center space-x-3 focus:outline-none cursor-pointer text-left bg-transparent border-none p-0"
+            >
+              <div className="text-right">
+                <p className="text-xs font-black text-[#111827]">{user?.name || "Guest User"}</p>
+                <p className="text-[9px] text-[#C76F2B] uppercase font-extrabold tracking-widest leading-none mt-0.5">
+                  {user?.role?.replace("_", " ")}
+                </p>
+              </div>
+              
+              {avatarSrc && !imgError ? (
+                <img
+                  src={avatarSrc}
+                  alt={user?.name || user?.username || "User"}
+                  className="w-8 h-8 rounded-none object-cover border border-[#D1D5DB]"
+                  onError={() => setImgError(true)}
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-none bg-[#E5E5E5] border border-[#D1D5DB] flex items-center justify-center text-[#214C55] font-black text-xs">
+                  {getInitials(user?.name)}
+                </div>
+              )}
+            </button>
+
+            {/* Dropdown Menu */}
+            {dropdownOpen && (
+              <div className="absolute right-0 top-11 mt-2 w-56 bg-white border border-[#D1D5DB] shadow-lg py-2 z-50 rounded-none text-left">
+                {/* Mini user info */}
+                <div className="px-4 py-2.5 border-b border-[#E5E5E5] flex items-center space-x-3">
+                  {avatarSrc && !imgError ? (
+                    <img
+                      src={avatarSrc}
+                      alt={user?.name || user?.username || "User"}
+                      className="w-10 h-10 rounded-full object-cover border border-[#D1D5DB]"
+                      onError={() => setImgError(true)}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#214C55] text-white flex items-center justify-center text-sm font-black">
+                      {getInitials(user?.name)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-black text-[#111827] truncate leading-tight">{user?.name || "Guest User"}</p>
+                    <p className="text-[9px] text-[#C76F2B] font-extrabold uppercase tracking-wider mt-0.5">{user?.role?.replace("_", " ")}</p>
                   </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-black text-[#111827] truncate leading-tight">{user?.name || "Guest User"}</p>
-                  <p className="text-[9px] text-[#C76F2B] font-extrabold uppercase tracking-wider mt-0.5">{user?.role?.replace("_", " ")}</p>
+                </div>
+
+                {/* Action items */}
+                <div className="py-1">
+                  <button
+                    onClick={handleMyProfileClick}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-[#214C55] hover:bg-[#F7F7F7] flex items-center space-x-2 cursor-pointer uppercase tracking-wider bg-transparent border-none"
+                  >
+                    <User size={14} />
+                    <span>My Profile</span>
+                  </button>
+                  <button
+                    onClick={handleLogoutClick}
+                    className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-[#FFF5F5] flex items-center space-x-2 cursor-pointer uppercase tracking-wider border-t border-[#E5E5E5]/60 bg-transparent border-none"
+                  >
+                    <LogOut size={14} />
+                    <span>Logout</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Action items */}
-              <div className="py-1">
-                <button
-                  onClick={handleMyProfileClick}
-                  className="w-full text-left px-4 py-2 text-xs font-bold text-[#214C55] hover:bg-[#F7F7F7] flex items-center space-x-2 cursor-pointer uppercase tracking-wider bg-transparent border-none"
-                >
-                  <User size={14} />
-                  <span>My Profile</span>
-                </button>
-                <button
-                  onClick={handleLogoutClick}
-                  className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-[#FFF5F5] flex items-center space-x-2 cursor-pointer uppercase tracking-wider border-t border-[#E5E5E5]/60 bg-transparent border-none"
-                >
-                  <LogOut size={14} />
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 };
 
