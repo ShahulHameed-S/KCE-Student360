@@ -202,7 +202,26 @@ export const LeaderboardPage = () => {
     );
   };
 
+  const isSelfStudent = (student) => {
+    const currentReg = (
+      user?.register_no ||
+      user?.registerNo ||
+      user?.username ||
+      user?.student?.register_no ||
+      ""
+    ).toString().trim().toLowerCase();
+
+    const studentReg = getStudentRegisterNo(student).toString().trim().toLowerCase();
+
+    return Boolean(currentReg && studentReg && currentReg === studentReg);
+  };
+
+  const canOpenProfile = user?.role === "mentor" || user?.role === "admin";
+
   const handleStudentClick = (student) => {
+    if (!canOpenProfile) {
+      return;
+    }
     const registerNo = getStudentRegisterNo(student);
     if (!registerNo) {
       console.error("Missing register number for leaderboard student:", student);
@@ -214,6 +233,9 @@ export const LeaderboardPage = () => {
 
   const handleProfileClick = (e, student) => {
     if (e && e.preventDefault) e.preventDefault();
+    if (!canOpenProfile) {
+      return;
+    }
     const registerNo = getStudentRegisterNo(student);
     if (!registerNo) {
       console.error("Missing register number for leaderboard student:", student);
@@ -323,7 +345,11 @@ export const LeaderboardPage = () => {
                   <span>Top performers - {selectedDomain}</span>
                   <Sparkles size={16} className="text-[#C76F2B]" />
                 </h3>
-                <p className="text-[11px] text-[#6B7280] font-semibold mt-0.5">Click a top student profile to inspect their full details.</p>
+                {canOpenProfile ? (
+                  <p className="text-[11px] text-[#6B7280] font-semibold mt-0.5">Click a top student profile to inspect their full details.</p>
+                ) : (
+                  <p className="text-[11px] text-[#6B7280] font-semibold mt-0.5">Top rankers overall performance score rankings.</p>
+                )}
               </div>
 
               <div className="flex flex-col md:flex-row items-center md:items-end justify-center gap-6 pt-4 max-w-4xl mx-auto">
@@ -343,8 +369,10 @@ export const LeaderboardPage = () => {
                         <div className="relative">
                           {showInitials ? (
                             <div
-                              onClick={() => handleStudentClick(student)}
-                              className={`rounded-full bg-[#214C55] text-white flex items-center justify-center text-lg font-black border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
+                              onClick={canOpenProfile ? () => handleStudentClick(student) : undefined}
+                              className={`rounded-full bg-[#214C55] text-white flex items-center justify-center text-lg font-black border-4 ${student.borderColor} transition-transform duration-200 ${
+                                canOpenProfile ? "hover:scale-105 cursor-pointer" : "cursor-default"
+                              } ${
                                 student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
                               }`}
                             >
@@ -355,8 +383,10 @@ export const LeaderboardPage = () => {
                               src={avatarSrc}
                               alt={student.name}
                               onError={() => handleImgError(student.register_no)}
-                              onClick={() => handleStudentClick(student)}
-                              className={`rounded-full object-cover border-4 ${student.borderColor} hover:scale-105 transition-transform duration-200 cursor-pointer ${
+                              onClick={canOpenProfile ? () => handleStudentClick(student) : undefined}
+                              className={`rounded-full object-cover border-4 ${student.borderColor} transition-transform duration-200 ${
+                                canOpenProfile ? "hover:scale-105 cursor-pointer" : "cursor-default"
+                              } ${
                                 student.rank === 1 ? "w-24 h-24 md:w-28 md:h-28" : "w-20 h-20 md:w-24 md:h-24"
                               }`}
                             />
@@ -369,12 +399,21 @@ export const LeaderboardPage = () => {
 
                         {/* Name / RegNo / Score */}
                         <div className="text-center space-y-0.5">
-                          <h4
-                            onClick={() => handleStudentClick(student)}
-                            className="text-xs font-black text-[#214C55] uppercase tracking-wide hover:underline cursor-pointer"
-                          >
-                            {student.name}
-                          </h4>
+                          <div className="flex items-center justify-center flex-wrap gap-1">
+                            <h4
+                              onClick={canOpenProfile ? () => handleStudentClick(student) : undefined}
+                              className={`text-xs font-black text-[#214C55] uppercase tracking-wide ${
+                                canOpenProfile ? "hover:underline cursor-pointer" : "cursor-default"
+                              }`}
+                            >
+                              {student.name}
+                            </h4>
+                            {isSelfStudent(student) && (
+                              <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 border border-orange-400 text-orange-700 bg-orange-50 select-none">
+                                You
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[9px] text-[#6B7280] font-bold uppercase">{getStudentRegisterNo(student)}</p>
                         </div>
 
@@ -388,14 +427,16 @@ export const LeaderboardPage = () => {
 
                         {/* Profile & Portfolio Buttons for Top Rankers */}
                         <div className="flex items-center justify-center space-x-1.5 pt-2 border-t border-[#E5E5E5] w-full">
-                          <button
-                            type="button"
-                            onClick={(e) => handleProfileClick(e, student)}
-                            className="text-[10px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2 py-0.5 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
-                          >
-                            <UserSquare2 size={11} />
-                            <span>Profile</span>
-                          </button>
+                          {canOpenProfile && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleProfileClick(e, student)}
+                              className="text-[10px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2 py-0.5 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                            >
+                              <UserSquare2 size={11} />
+                              <span>Profile</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => handlePortfolioClick(e, student)}
@@ -473,11 +514,16 @@ export const LeaderboardPage = () => {
                                   />
                                 )}
                               <span
-                                onClick={() => handleStudentClick(student)}
-                                className="hover:underline cursor-pointer"
+                                onClick={canOpenProfile ? () => handleStudentClick(student) : undefined}
+                                className={canOpenProfile ? "hover:underline cursor-pointer" : "cursor-default"}
                               >
                                 {student.name}
                               </span>
+                              {isSelfStudent(student) && (
+                                <span className="ml-2 text-xs px-2 py-1 border border-orange-400 text-orange-700 bg-orange-50 font-bold select-none">
+                                  You
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-6 py-3 whitespace-nowrap text-center">
@@ -510,26 +556,28 @@ export const LeaderboardPage = () => {
                               <span className="text-[#6B7280] font-bold">Not added</span>
                             )}
                           </td>
-                        <td className="px-6 py-3 whitespace-nowrap text-center">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              type="button"
-                              onClick={(e) => handleProfileClick(e, student)}
-                              className="text-[11px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
-                            >
-                              <UserSquare2 size={12} />
-                              <span>Profile</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handlePortfolioClick(e, student)}
-                              className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
-                            >
-                              <span>Portfolio</span>
-                              <ExternalLink size={12} />
-                            </button>
-                          </div>
-                        </td>
+                          <td className="px-6 py-3 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center space-x-2">
+                              {canOpenProfile && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleProfileClick(e, student)}
+                                  className="text-[11px] font-bold text-[#214C55] hover:text-white bg-white hover:bg-[#214C55] border border-[#214C55] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                                >
+                                  <UserSquare2 size={12} />
+                                  <span>Profile</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handlePortfolioClick(e, student)}
+                                className="text-[11px] font-bold text-[#C76F2B] hover:text-white bg-white hover:bg-[#C76F2B] border border-[#C76F2B] px-2.5 py-1 rounded-none inline-flex items-center space-x-1 transition-all shadow-none cursor-pointer"
+                              >
+                                <span>Portfolio</span>
+                                <ExternalLink size={12} />
+                              </button>
+                            </div>
+                          </td>
                           </tr>
                         );
                       })}
