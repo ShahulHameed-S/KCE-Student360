@@ -1772,13 +1772,15 @@ async def debug_email_config(
     """
     Returns diagnostic config status for SMTP without exposing sensitive credentials.
     """
+    import os
     from app.config import settings
     
-    smtp_host = settings.SMTP_HOST
-    smtp_port = settings.SMTP_PORT
-    smtp_user = settings.SMTP_USER
-    smtp_password = settings.SMTP_PASSWORD
-    smtp_from = settings.SMTP_FROM
+    smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
+    port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
+    smtp_port = int(port_val) if port_val else None
+    smtp_user = os.environ.get("SMTP_USERNAME") or os.environ.get("MAIL_USERNAME") or os.environ.get("SMTP_USER") or settings.SMTP_USER
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or settings.SMTP_PASSWORD
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("MAIL_FROM") or os.environ.get("SMTP_FROM") or settings.SMTP_FROM
     
     smtp_configured = all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from])
     
@@ -1800,15 +1802,20 @@ async def debug_send_test_email(
     """
     Sends a test email to the specified address.
     """
+    import os
     import smtplib
     from email.mime.text import MIMEText
     from app.config import settings
     
-    smtp_host = settings.SMTP_HOST
-    smtp_port = settings.SMTP_PORT
-    smtp_user = settings.SMTP_USER
-    smtp_password = settings.SMTP_PASSWORD
-    smtp_from = settings.SMTP_FROM
+    smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
+    port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
+    smtp_port = int(port_val) if port_val else None
+    smtp_user = os.environ.get("SMTP_USERNAME") or os.environ.get("MAIL_USERNAME") or os.environ.get("SMTP_USER") or settings.SMTP_USER
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or settings.SMTP_PASSWORD
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("MAIL_FROM") or os.environ.get("SMTP_FROM") or settings.SMTP_FROM
+    
+    smtp_tls_val = os.environ.get("SMTP_TLS") or os.environ.get("MAIL_TLS") or "true"
+    use_tls = smtp_tls_val.lower() == "true"
     
     if not all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from]):
         return {
@@ -1824,7 +1831,8 @@ async def debug_send_test_email(
         msg["To"] = payload.to_email
         
         server = smtplib.SMTP(smtp_host, int(smtp_port))
-        server.starttls()
+        if use_tls:
+            server.starttls()
         server.login(smtp_user, smtp_password)
         server.send_message(msg)
         server.quit()

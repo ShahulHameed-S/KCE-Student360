@@ -6,19 +6,39 @@ from app.config import settings
 def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> bool:
     """
     Sends an OTP email to the recipient.
-    If ENVIRONMENT == "development" and SMTP details are missing, falls back to writing to scratch/last_otp.txt.
-    In production, raises an exception if SMTP variables are missing.
-    Never prints the plain OTP in stdout logs.
+    Supports fallback names for Render/production environment variables.
+    Never prints plain OTP or passwords.
     """
     env = (settings.ENVIRONMENT or "development").lower()
     
-    smtp_host = settings.SMTP_HOST
-    smtp_port = settings.SMTP_PORT
-    smtp_user = settings.SMTP_USER
-    smtp_password = settings.SMTP_PASSWORD
-    smtp_from = settings.SMTP_FROM
+    # Check all naming fallbacks for SMTP Host
+    smtp_host = os.environ.get("SMTP_HOST") or os.environ.get("MAIL_SERVER") or settings.SMTP_HOST
     
+    # Check all naming fallbacks for SMTP Port
+    port_val = os.environ.get("SMTP_PORT") or os.environ.get("MAIL_PORT") or settings.SMTP_PORT
+    smtp_port = int(port_val) if port_val else None
+    
+    # Check all naming fallbacks for SMTP User
+    smtp_user = os.environ.get("SMTP_USERNAME") or os.environ.get("MAIL_USERNAME") or os.environ.get("SMTP_USER") or settings.SMTP_USER
+    
+    # Check all naming fallbacks for SMTP Password
+    smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or settings.SMTP_PASSWORD
+    
+    # Check all naming fallbacks for SMTP From Email
+    smtp_from = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("MAIL_FROM") or os.environ.get("SMTP_FROM") or settings.SMTP_FROM
+    
+    # Check SMTP TLS flag (default True)
+    smtp_tls_val = os.environ.get("SMTP_TLS") or os.environ.get("MAIL_TLS") or "true"
+    use_tls = smtp_tls_val.lower() == "true"
+
     smtp_configured = all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from])
+    
+    # Safe diagnostic logging (no credentials or values exposed)
+    print(f"[SMTP DIAGNOSTIC] env: {env}")
+    print(f"[SMTP DIAGNOSTIC] smtp_host_present: {bool(smtp_host)}")
+    print(f"[SMTP DIAGNOSTIC] smtp_username_present: {bool(smtp_user)}")
+    print(f"[SMTP DIAGNOSTIC] smtp_password_present: {bool(smtp_password)}")
+    print(f"[SMTP DIAGNOSTIC] from_email_present: {bool(smtp_from)}")
     
     if not smtp_configured:
         if env == "production":
@@ -60,7 +80,8 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
         
         # Connect to SMTP server
         server = smtplib.SMTP(smtp_host, int(smtp_port))
-        server.starttls()
+        if use_tls:
+            server.starttls()
         server.login(smtp_user, smtp_password)
         server.send_message(msg)
         server.quit()
