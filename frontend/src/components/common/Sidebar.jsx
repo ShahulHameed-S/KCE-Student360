@@ -144,12 +144,6 @@ export const Sidebar = () => {
       roles: ["student"]
     },
     {
-      name: "My Profile",
-      path: "/my-profile",
-      icon: User,
-      roles: ["student"]
-    },
-    {
       name: "Leaderboard",
       path: "/leaderboard",
       icon: Trophy,
