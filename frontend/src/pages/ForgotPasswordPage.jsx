@@ -49,10 +49,13 @@ export const ForgotPasswordPage = () => {
       setSuccessMsg(res.message || "OTP code sent to your registered email.");
       setStep(2);
     } catch (err) {
+      const errMsg = err.message || "";
       if (err.response?.status === 404) {
         setError("No account found for this register number or email.");
+      } else if (err.response?.status === 504 || errMsg.toLowerCase().includes("timeout") || errMsg.toLowerCase().includes("exceeded")) {
+        setError("Email service timed out. Please try again later.");
       } else {
-        setError(err.response?.data?.detail || err.message || "Failed to request password reset code.");
+        setError(err.response?.data?.detail || errMsg || "Failed to request password reset code.");
       }
     } finally {
       setLoading(false);
@@ -70,10 +73,13 @@ export const ForgotPasswordPage = () => {
       setSuccessMsg("Reset code verified successfully. Please choose a new password.");
       setStep(3);
     } catch (err) {
+      const errMsg = err.message || "";
       if (err.response?.status === 404) {
         setError("No account found for this register number or email.");
+      } else if (err.response?.status === 504 || errMsg.toLowerCase().includes("timeout") || errMsg.toLowerCase().includes("exceeded")) {
+        setError("Email service timed out. Please try again later.");
       } else {
-        setError(err.response?.data?.detail || err.message || "Invalid reset code. Please try again.");
+        setError(err.response?.data?.detail || errMsg || "Invalid reset code. Please try again.");
       }
     } finally {
       setLoading(false);

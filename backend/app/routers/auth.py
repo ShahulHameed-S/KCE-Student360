@@ -249,6 +249,10 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
         detail_msg = "Unable to send OTP email. Please contact admin."
         if "not configured" in err_msg.lower():
             detail_msg = "Email service is not configured."
+        elif "authentication failed" in err_msg.lower():
+            detail_msg = "Email service authentication failed. Please contact admin."
+        elif "timed out" in err_msg.lower() or "timeouterror" in err_msg.lower():
+            detail_msg = "Email service timed out. Please try again later."
         raise HTTPException(status_code=500, detail=detail_msg)
 
     # Deactivate previous active OTPs for safety

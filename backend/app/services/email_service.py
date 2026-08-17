@@ -1,5 +1,6 @@
 import os
 import smtplib
+import socket
 from email.mime.text import MIMEText
 from app.config import settings
 
@@ -7,6 +8,7 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
     """
     Sends an OTP email to the recipient.
     Supports fallback names for Render/production environment variables.
+    Enforces a 15-second connection timeout and custom exception classification.
     Never prints plain OTP or passwords.
     """
     env = (settings.ENVIRONMENT or "development").lower()
@@ -27,9 +29,12 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
     # Check all naming fallbacks for SMTP From Email
     smtp_from = os.environ.get("SMTP_FROM_EMAIL") or os.environ.get("MAIL_FROM") or os.environ.get("SMTP_FROM") or settings.SMTP_FROM
     
-    # Check SMTP TLS flag (default True)
+    # Check SMTP TLS/SSL flags
     smtp_tls_val = os.environ.get("SMTP_TLS") or os.environ.get("MAIL_TLS") or "true"
     use_tls = smtp_tls_val.lower() == "true"
+    
+    smtp_ssl_val = os.environ.get("SMTP_SSL") or os.environ.get("MAIL_SSL") or "false"
+    use_ssl = smtp_ssl_val.lower() == "true"
 
     smtp_configured = all([smtp_host, smtp_port, smtp_user, smtp_password, smtp_from])
     
@@ -78,15 +83,28 @@ def send_otp_email(recipient_email: str, otp: str, role: str = "student") -> boo
         msg["From"] = smtp_from
         msg["To"] = recipient_email
         
-        # Connect to SMTP server
-        server = smtplib.SMTP(smtp_host, int(smtp_port))
-        if use_tls:
-            server.starttls()
-        server.login(smtp_user, smtp_password)
-        server.send_message(msg)
-        server.quit()
-        
+        # Decide between SSL port 465 and standard/TLS port 587
+        if use_ssl or smtp_port == 465:
+            server_class = smtplib.SMTP_SSL
+        else:
+            server_class = smtplib.SMTP
+
+        with server_class(smtp_host, int(smtp_port), timeout=15) as server:
+            if not (use_ssl or smtp_port == 465) and use_tls:
+                server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+            
         print(f"[EMAIL SERVICE] Successfully sent OTP email to {recipient_email}")
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        raise Exception("SMTPAuthenticationError: Email authentication failed. Please check SMTP credentials.")
+    except (smtplib.SMTPConnectError, socket.timeout, TimeoutError) as e:
+        raise Exception("TimeoutError: Email service timed out. Please try again later.")
+    except smtplib.SMTPServerDisconnected as e:
+        raise Exception("SMTPServerDisconnected: Email service disconnected. Please contact admin.")
     except Exception as e:
-        raise Exception(f"SMTP email transmission failed: {str(e)}")
+        err_msg = str(e)
+        if "timeout" in err_msg.lower() or "timed out" in err_msg.lower():
+            raise Exception("TimeoutError: Email service timed out. Please try again later.")
+        raise Exception(f"SMTP email transmission failed: {err_msg}")
