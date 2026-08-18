@@ -1330,6 +1330,7 @@ export const FacultyDashboard = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [adminSection, setAdminSection] = useState("dashboard");
   const [students, setStudents] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
@@ -1544,7 +1545,6 @@ export const FacultyDashboard = () => {
 
   // Admin Modals state
   const [activeModal, setActiveModal] = useState(null);
-  const [adminSection, setAdminSection] = useState("dashboard");
   const [selectedItem, setSelectedItem] = useState(null);
   const [faculties, setFaculties] = useState([]);
   const [facultiesLoading, setFacultiesLoading] = useState(false);
